@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carrinho de Compras - Delícias da Raposo</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        /* Estilos específicos para o carrinho moderno */
+        #carrinho-vazio {
+            text-align: center;
+            padding: 50px 0;
+        }
+
+        #carrinho-vazio a {
+            color: var(--cor-primaria);
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        #carrinho-vazio a:hover {
+            text-decoration: underline;
+        }
+
+        /* Layout do carrinho em cards */
+        #lista-carrinho {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 30px;
+            list-style: none;
+            padding: 0;
+        }
+
+        .item-carrinho {
+            display: flex;
+            align-items: center;
+            background-color: #FFF;
+            border: 2px solid #EEE;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .item-carrinho:hover {
+            border-color: var(--cor-primaria);
+            box-shadow: 0 4px 12px rgba(255, 99, 71, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .item-carrinho-imagem {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .item-carrinho-info {
+            flex-grow: 1;
+        }
+
+        .item-carrinho-nome {
+            font-weight: bold;
+            color: var(--cor-texto);
+            margin-bottom: 5px;
+            font-size: 1em;
+        }
+
+        .item-carrinho-preco {
+            color: var(--cor-primaria);
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 8px;
+        }
+
+        .item-carrinho-controles {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .quantidade-controle {
+            display: flex;
+            align-items: center;
+            border: 1px solid #DDD;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .quantidade-btn {
+            width: 30px;
+            height: 30px;
+            border: none;
+            background-color: #F5F5F5;
+            cursor: pointer;
+            font-weight: bold;
+            color: var(--cor-primaria);
+            transition: background-color 0.2s;
+        }
+
+        .quantidade-btn:hover {
+            background-color: var(--cor-secundaria);
+        }
+
+        .quantidade-input {
+            width: 40px;
+            height: 30px;
+            border: none;
+            text-align: center;
+            font-weight: bold;
+            background-color: #FFF;
+        }
+
+        .btn-remover {
+            background-color: #ff4d4d;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+            font-size: 0.9em;
+        }
+
+        .btn-remover:hover {
+            background-color: #cc0000;
+        }
+
+        /* Resumo do pedido */
+        .resumo-pedido {
+            background-color: #FFF;
+            border: 2px solid var(--cor-primaria);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .resumo-linha {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 1em;
+        }
+
+        .resumo-linha-label {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .resumo-linha-valor {
+            font-weight: bold;
+            color: var(--cor-texto);
+        }
+
+        .resumo-total {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.4em;
+            font-weight: bold;
+            color: var(--cor-primaria);
+            border-top: 2px solid #EEE;
+            padding-top: 12px;
+            margin-top: 12px;
+        }
+
+        /* Botão WhatsApp melhorado */
+        .btn-whatsapp {
+            display: block;
+            width: 100%;
+            padding: 18px;
+            background-color: #25D366;
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            font-size: 1.1em;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
+        }
+
+        .btn-whatsapp:hover:not(:disabled) {
+            background-color: #1DA851;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(37, 211, 102, 0.4);
+        }
+
+        .btn-whatsapp:disabled {
+            background-color: #CCC;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        /* Responsividade */
+        @media (max-width: 768px) {
+            .item-carrinho {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .item-carrinho-imagem {
+                margin-right: 0;
+                margin-bottom: 10px;
+                width: 100px;
+                height: 100px;
+            }
+
+            .item-carrinho-controles {
+                justify-content: center;
+                width: 100%;
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Cabeçalho da Página -->
+    <header>
+        <div class="container">
+            <h1>Delícias da Raposo</h1>
+            <nav>
+                <ul>
+                    <li><a href="../index.html">Início</a></li>
+                    <li><a href="cardapio.html">Cardápio</a></li>
+                    <li><a href="sobre.html">Sobre</a></li>
+                    <li><a href="contato.html">Contato</a></li>
+                    <li><a href="carrinho.html" class="active">Carrinho</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Conteúdo Principal do Carrinho -->
+    <main>
+        <section id="carrinho" class="page-section">
+            <div class="container">
+                <h2>Seu Carrinho de Compras</h2>
+                
+                <div id="carrinho-vazio" style="display: none;">
+                    <p>Seu carrinho está vazio. <a href="cardapio.html">Volte ao cardápio</a> para adicionar alguns hambúrgueres!</p>
+                </div>
+
+                <div id="carrinho-conteudo">
+                    <ul id="lista-carrinho">
+                        <!-- Itens do carrinho serão inseridos aqui pelo JavaScript -->
+                    </ul>
+
+                    <div class="resumo-pedido">
+                        <div class="resumo-linha">
+                            <span class="resumo-linha-label">Subtotal:</span>
+                            <span class="resumo-linha-valor" id="subtotal-pedido">R$ 0,00</span>
+                        </div>
+                        <div class="resumo-linha">
+                            <span class="resumo-linha-label">Taxa de Entrega:</span>
+                            <span class="resumo-linha-valor">Grátis</span>
+                        </div>
+                        <div class="resumo-total">
+                            <span>Total:</span>
+                            <span id="total-pedido">R$ 0,00</span>
+                        </div>
+                    </div>
+
+                    <button id="finalizar-pedido" class="btn-whatsapp" disabled>
+                        🛒 Finalizar Pedido no WhatsApp
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Rodapé da Página -->
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 Delícias da Raposo. Todos os direitos reservados.</p>
+            <p>Desenvolvido com <span style="color: red;">♥</span> por Manus AI</p>
+        </div>
+    </footer>
+
+    <!-- Link para o arquivo JavaScript principal -->
+    <script src="../js/main.js"></script>
+</body>
+</html>
