@@ -134,7 +134,7 @@ export const STORE_INFO = {
   hours: {
     weekdays: { open: 9, close: 18 },
     saturday: { open: 9, close: 23 },
-    sunday: null, // Fechado
+    sunday: { open: 0, close: 23 }, // Fechado
   },
 }
 
