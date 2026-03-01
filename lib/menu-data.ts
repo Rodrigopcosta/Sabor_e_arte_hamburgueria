@@ -139,32 +139,35 @@ export const STORE_INFO = {
 }
 
 export function isStoreOpen(): boolean {
-  const now = new Date()
-  const spTime = new Date(
-    now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" })
-  )
-  const day = spTime.getDay() // 0: Dom, 1: Seg, ..., 6: Sab
-  const hour = spTime.getHours()
-  const minutes = spTime.getMinutes()
-  const currentTime = hour + minutes / 60
 
-  // Domingo: Fechado
-  if (day === 0) return false
+  return true
 
-  // Sábado
-  if (day === 6) {
-    return (
-      !!STORE_INFO.hours.saturday &&
-      currentTime >= STORE_INFO.hours.saturday.open &&
-      currentTime < STORE_INFO.hours.saturday.close
-    )
-  }
+  // const now = new Date()
+  // const spTime = new Date(
+  //   now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" })
+  // )
+  // const day = spTime.getDay() // 0: Dom, 1: Seg, ..., 6: Sab
+  // const hour = spTime.getHours()
+  // const minutes = spTime.getMinutes()
+  // const currentTime = hour + minutes / 60
 
-  // Dias de semana (Segunda a Sexta)
-  return (
-    currentTime >= STORE_INFO.hours.weekdays.open &&
-    currentTime < STORE_INFO.hours.weekdays.close
-  )
+  // // Domingo: Fechado
+  // if (day === 0) return false
+
+  // // Sábado
+  // if (day === 6) {
+  //   return (
+  //     !!STORE_INFO.hours.saturday &&
+  //     currentTime >= STORE_INFO.hours.saturday.open &&
+  //     currentTime < STORE_INFO.hours.saturday.close
+  //   )
+  // }
+
+  // // Dias de semana (Segunda a Sexta)
+  // return (
+  //   currentTime >= STORE_INFO.hours.weekdays.open &&
+  //   currentTime < STORE_INFO.hours.weekdays.close
+  // )
 }
 
 export function getStoreStatusMessage(): { open: boolean; message: string } {
