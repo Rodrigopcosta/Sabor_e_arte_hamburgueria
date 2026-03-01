@@ -113,7 +113,7 @@ export default function CarrinhoPage() {
                   <button
                     onClick={() => setStep("details")}
                     disabled={!storeOpen}
-                    className="bg-primary text-primary-foreground h-14 w-full cursor-pointer rounded-xl font-bold transition-transform hover:scale-[1.01] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-primary text-primary-foreground h-14 w-full cursor-pointer rounded-xl font-bold transition-transform hover:scale-[1.01] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Continuar para Entrega
                   </button>
