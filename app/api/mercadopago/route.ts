@@ -79,6 +79,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    console.log(
+      "Preferência criada:",
+      result.id,
+      "| collector_id:",
+      result.collector_id
+    )
+
     return NextResponse.json({
       preferenceId: result.id,
     })
