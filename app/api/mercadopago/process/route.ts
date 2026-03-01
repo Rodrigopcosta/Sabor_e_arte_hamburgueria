@@ -78,7 +78,6 @@ export async function POST(request: NextRequest) {
     const payment = await paymentResponse.json()
     console.log("MP Payment response:", JSON.stringify(payment, null, 2)) // TEMP
 
-
     if (!paymentResponse.ok) {
       console.error("MP Payment error:", payment)
       return NextResponse.json(

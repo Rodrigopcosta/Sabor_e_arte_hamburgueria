@@ -42,8 +42,8 @@ export async function POST(request: NextRequest) {
         },
       },
       payment_methods: {
-        excluded_payment_types: [{ id: "ticket" }], // Remove boleto
-        installments: 1, // Máximo 1x sem juros
+        excluded_payment_types: [{ id: "ticket" }, { id: "atm" }],
+        installments: 1,
       },
       metadata: {
         quotation_id: quotationId,
