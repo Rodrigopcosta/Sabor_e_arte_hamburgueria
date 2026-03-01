@@ -1,23 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import crypto from "crypto"
 
-const LALAMOVE_BASE_URL =
-  process.env.LALAMOVE_API_URL || "https://rest.sandbox.lalamove.com"
+const LALAMOVE_BASE_URL = process.env.LALAMOVE_API_URL || "https://rest.sandbox.lalamove.com"
 const LALAMOVE_API_KEY = process.env.LALAMOVE_API_KEY || ""
 const LALAMOVE_API_SECRET = process.env.LALAMOVE_API_SECRET || ""
 const LALAMOVE_MARKET = process.env.LALAMOVE_MARKET || "BR"
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || ""
 
-function generateSignature(
-  method: string,
-  path: string,
-  body: string,
-  timestamp: string
-) {
+// --- FUNÇÕES DE AUXÍLIO ---
+
+function generateSignature(method: string, path: string, body: string, timestamp: string) {
   const rawSignature = `${timestamp}\r\n${method}\r\n${path}\r\n\r\n${body}`
-  return crypto
-    .createHmac("sha256", LALAMOVE_API_SECRET)
-    .update(rawSignature)
-    .digest("hex")
+  return crypto.createHmac("sha256", LALAMOVE_API_SECRET).update(rawSignature).digest("hex")
 }
 
 function getAuthHeaders(method: string, path: string, body: string) {
@@ -29,6 +23,24 @@ function getAuthHeaders(method: string, path: string, body: string) {
     Market: LALAMOVE_MARKET,
   }
 }
+
+async function getCoordinates(address: string) {
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${GOOGLE_MAPS_API_KEY}`
+    const response = await fetch(url)
+    const data = await response.json()
+
+    if (data.status === "OK") {
+      const { lat, lng } = data.results[0].geometry.location
+      return { lat: lat.toString(), lng: lng.toString() }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+// --- HANDLER PRINCIPAL ---
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,37 +58,89 @@ export async function POST(request: NextRequest) {
       case "status":
         return handleStatus(data)
       default:
-        return NextResponse.json({ error: "Acao invalida" }, { status: 400 })
+        return NextResponse.json({ error: "Ação inválida" }, { status: 400 })
     }
   } catch (error) {
-    console.error("Lalamove API error:", error)
-    return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
 
-async function handleQuote(data: {
-  originAddress: string
-  destinationAddress: string
-}) {
-  const path = "/v3/quotations"
-  const body = JSON.stringify({
-    serviceType: "MOTORCYCLE",
-    language: "pt_BR",
-    stops: [
-      {
-        coordinates: { lat: "-23.5935", lng: "-46.7488" },
-        address: "R. Jose Silvano Filho, 113 - Jardim Lucia, Sao Paulo - SP",
-      },
-      {
-        coordinates: { lat: "-23.5600", lng: "-46.6400" },
-        address: data.destinationAddress,
-      },
-    ],
-  })
+// --- WEBHOOK (GET) ---
+// A Lalamove chama esta rota automaticamente quando o status do pedido muda.
+// Configure a URL do webhook no painel da Lalamove: https://seusite.com/api/lalamove
+// Eventos: ASSIGNING_DRIVER, ON_GOING, PICKED_UP, COMPLETED, CANCELED, REJECTED, EXPIRED
 
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const orderId = searchParams.get("orderId")
+  const status = searchParams.get("status")
+  const driverName = searchParams.get("driverName") || ""
+  const driverPhone = searchParams.get("driverPhone") || ""
+
+  if (!orderId || !status) {
+    return NextResponse.json({ error: "Parâmetros inválidos" }, { status: 400 })
+  }
+
+  // Aqui você pode salvar no banco de dados, notificar o dono via WhatsApp, etc.
+  // Por enquanto, mapeamos os status para mensagens legíveis
+  const statusMessages: Record<string, string> = {
+    ASSIGNING_DRIVER:  "🔍 Procurando motoboy...",
+    ON_GOING:          "🏍️ Motoboy a caminho da retirada",
+    PICKED_UP:         "✅ Pedido retirado! Indo até o cliente",
+    COMPLETED:         "🎉 Pedido entregue com sucesso!",
+    CANCELED:          "❌ Pedido cancelado",
+    REJECTED:          "❌ Pedido rejeitado",
+    EXPIRED:           "⏰ Pedido expirado",
+  }
+
+  const message = statusMessages[status] || `Status atualizado: ${status}`
+
+  // TODO: Aqui você integra com a notificação do dono
+  // Exemplo: await sendWhatsApp(OWNER_PHONE, `Pedido ${orderId}: ${message}`)
+  console.log(`[Webhook] Pedido ${orderId}: ${message}`, { driverName, driverPhone })
+
+  // A Lalamove espera um 200 para confirmar que recebeu o webhook
+  return NextResponse.json({ received: true })
+}
+
+// --- COTAÇÃO ---
+
+async function handleQuote(data: { destinationAddress: string }) {
+  const path = "/v3/quotations"
+
+  const destCoords = await getCoordinates(data.destinationAddress)
+
+  if (!destCoords) {
+    return NextResponse.json(
+      { error: "Não conseguimos localizar o endereço de entrega no mapa." },
+      { status: 422 }
+    )
+  }
+
+  const payload = {
+    data: {
+      serviceType: "LALAGO", // Em produção BR: testar "MOTORCYCLE"
+      language: "pt_BR",
+      stops: [
+        {
+          coordinates: { lat: "-23.593539", lng: "-46.748802" },
+          address: "Rua Jose Silvano Filho, 113 - Jardim Lucia, Sao Paulo - SP, 05750-250, BR",
+        },
+        {
+          coordinates: { lat: destCoords.lat, lng: destCoords.lng },
+          address: data.destinationAddress,
+        },
+      ],
+      item: {
+        quantity: "1",
+        weight: "LESS_THAN_5KG",
+        categories: ["FOOD_AND_BEVERAGE"],
+        handlingInstructions: [],
+      },
+    },
+  }
+
+  const body = JSON.stringify(payload)
   const headers = getAuthHeaders("POST", path, body)
 
   const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, {
@@ -89,124 +153,100 @@ async function handleQuote(data: {
 
   if (!response.ok) {
     return NextResponse.json(
-      { error: result.message || "Erro ao calcular frete" },
+      { error: "Erro ao calcular frete", details: result },
       { status: response.status }
     )
   }
 
   return NextResponse.json({
-    quotationId: result.quotationId,
-    priceBreakdown: result.priceBreakdown,
-    totalFee: result.priceBreakdown?.total,
+    quotationId: result.data?.quotationId,
+    totalFee: parseFloat(result.data?.priceBreakdown?.total || "0"),
     estimatedTime: "30-45 min",
   })
 }
 
+// --- CRIAR PEDIDO ---
+
 async function handleOrder(data: {
   quotationId: string
-  senderName: string
-  senderPhone: string
   recipientName: string
   recipientPhone: string
-  recipientAddress: string
 }) {
   const path = "/v3/orders"
-  const body = JSON.stringify({
-    quotationId: data.quotationId,
-    sender: {
-      stopId: 0,
-      name: data.senderName || "Brasa Burger",
-      phone: data.senderPhone || "+5511999999999",
-    },
-    recipients: [
-      {
-        stopId: 1,
-        name: data.recipientName,
-        phone: data.recipientPhone,
-        remarks: "Pedido Brasa Burger - Favor entregar com cuidado",
+
+  const payload = {
+    data: {
+      quotationId: data.quotationId,
+      sender: {
+        stopId: "0",
+        name: "Brasa Burger",
+        phone: "+5511999999999",
       },
-    ],
-  })
+      recipients: [
+        {
+          stopId: "1",
+          name: data.recipientName,
+          phone: data.recipientPhone,
+          remarks: "Pedido de lanche - Brasa Burger",
+        },
+      ],
+    },
+  }
 
+  const body = JSON.stringify(payload)
   const headers = getAuthHeaders("POST", path, body)
-
-  const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, {
-    method: "POST",
-    headers,
-    body,
-  })
-
+  const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, { method: "POST", headers, body })
   const result = await response.json()
 
   if (!response.ok) {
     return NextResponse.json(
-      { error: result.message || "Erro ao criar pedido" },
+      { error: "Erro ao criar pedido", details: result },
       { status: response.status }
     )
   }
 
   return NextResponse.json({
-    orderId: result.orderId,
-    status: result.status,
-    shareLink: result.shareLink,
+    orderId: result.data?.orderId,
+    status: result.data?.status,
+    // Este link serve tanto para o cliente quanto para o dono acompanharem
+    shareLink: result.data?.shareLink,
   })
 }
+
+// --- CONSULTAR STATUS ---
 
 async function handleStatus(data: { orderId: string }) {
   const path = `/v3/orders/${data.orderId}`
   const headers = getAuthHeaders("GET", path, "")
-
-  const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, {
-    method: "GET",
-    headers,
-  })
-
+  const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, { method: "GET", headers })
   const result = await response.json()
 
   if (!response.ok) {
-    return NextResponse.json(
-      { error: result.message || "Erro ao buscar status" },
-      { status: response.status }
-    )
+    return NextResponse.json({ error: "Erro ao buscar status" }, { status: response.status })
   }
 
   return NextResponse.json({
-    orderId: result.orderId,
-    status: result.status,
-    driver: result.driver,
-    shareLink: result.shareLink,
+    orderId: result.data?.orderId,
+    status: result.data?.status,
+    isDelivered: result.data?.status === "COMPLETED",
+    driver: result.data?.driver
+      ? {
+          name: result.data.driver.name,
+          phone: result.data.driver.phone,
+          plateNumber: result.data.driver.plateNumber,
+        }
+      : null,
+    shareLink: result.data?.shareLink,
   })
 }
 
+// --- SIMULAÇÃO ---
+
 function handleSimulated(action: string, data: Record<string, unknown>) {
-  switch (action) {
-    case "quote":
-      return NextResponse.json({
-        quotationId: `QT-${Date.now()}`,
-        totalFee: `R$ ${(8 + Math.random() * 12).toFixed(2).replace(".", ",")}`,
-        estimatedTime: `${25 + Math.floor(Math.random() * 20)} min`,
-        simulated: true,
-      })
-    case "order":
-      return NextResponse.json({
-        orderId: `ORD-${Date.now()}`,
-        status: "ASSIGNING_DRIVER",
-        shareLink: `https://share.lalamove.com/track/${Date.now()}`,
-        simulated: true,
-      })
-    case "status":
-      return NextResponse.json({
-        orderId: data.orderId || `ORD-${Date.now()}`,
-        status: "ON_GOING",
-        driver: {
-          name: "Joao M.",
-          phone: "+5511988887777",
-          plateNumber: "ABC-1234",
-        },
-        shareLink: `https://share.lalamove.com/track/${Date.now()}`,
-        simulated: true,
-      })
-    default:
-      return NextResponse.json({ error: "Acao invalida" }, { status: 400 })
-  }
+  return NextResponse.json({
+    quotationId: `QT-SIM-${Date.now()}`,
+    totalFee: 12.5,
+    estimatedTime: "30-45 min",
+    simulated: true,
+  })
 }
