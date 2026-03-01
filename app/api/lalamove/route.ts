@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
   const driverPhone = searchParams.get("driverPhone") || ""
 
   if (!orderId || !status) {
-    return NextResponse.json({ error: "Parâmetros inválidos" }, { status: 400 })
+    return NextResponse.json({ ok: true }, { status: 200 })
   }
 
   // Aqui você pode salvar no banco de dados, notificar o dono via WhatsApp, etc.
