@@ -79,7 +79,6 @@ export function MercadoPagoCheckout({
                   creditCard: "all",
                   debitCard: "all",
                   ticket: "none",
-                  bankTransfer: "none",
                   atm: "none",
                 },
                 visual: {

@@ -139,7 +139,6 @@ export const STORE_INFO = {
 }
 
 export function isStoreOpen(): boolean {
-
   return true
 
   // const now = new Date()
