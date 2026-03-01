@@ -27,7 +27,8 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
-, "register-webhook.mjs"  ],
+    ".next/dev/types/**/*.ts",
+    "register-webhook.mjs"
+  ],
   "exclude": ["node_modules"]
 }

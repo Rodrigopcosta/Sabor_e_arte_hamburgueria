@@ -52,7 +52,11 @@ export function CheckoutForm({
 
       const data = await response.json()
 
-      if (response.ok && typeof data.totalFee === "number" && data.quotationId) {
+      if (
+        response.ok &&
+        typeof data.totalFee === "number" &&
+        data.quotationId
+      ) {
         onAddressComplete(data.totalFee, data.quotationId)
       }
     } catch (error) {

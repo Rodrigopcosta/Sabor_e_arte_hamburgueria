@@ -14,10 +14,19 @@ import { MercadoPagoCheckout } from "@/components/mercadopago-checkout"
 import { OrderConfirmation } from "@/components/order-confirmation"
 
 export default function CarrinhoPage() {
-  const { items, totalItems, totalPrice, updateQuantity, removeItem, clearCart } = useCart()
+  const {
+    items,
+    totalItems,
+    totalPrice,
+    updateQuantity,
+    removeItem,
+    clearCart,
+  } = useCart()
 
   // Etapas: cart → details → payment → confirmation
-  const [step, setStep] = useState<"cart" | "details" | "payment" | "confirmation">("cart")
+  const [step, setStep] = useState<
+    "cart" | "details" | "payment" | "confirmation"
+  >("cart")
 
   const [storeOpen, setStoreOpen] = useState(true)
   const [statusMsg, setStatusMsg] = useState("")
@@ -31,13 +40,19 @@ export default function CarrinhoPage() {
   const [formData, setFormData] = useState({ name: "", phone: "", address: "" })
 
   // Resultado do pagamento
-  const [paymentStatus, setPaymentStatus] = useState<"approved" | "pending">("approved")
-  const [pixData, setPixData] = useState<{ qrCode?: string; qrCodeBase64?: string }>({})
+  const [paymentStatus, setPaymentStatus] = useState<"approved" | "pending">(
+    "approved"
+  )
+  const [pixData, setPixData] = useState<{
+    qrCode?: string
+    qrCodeBase64?: string
+  }>({})
 
   useEffect(() => {
-    const savedName    = localStorage.getItem("@SaborEArte:customerName")    || ""
-    const savedPhone   = localStorage.getItem("@SaborEArte:customerPhone")   || ""
-    const savedAddress = localStorage.getItem("@SaborEArte:customerAddress") || ""
+    const savedName = localStorage.getItem("@SaborEArte:customerName") || ""
+    const savedPhone = localStorage.getItem("@SaborEArte:customerPhone") || ""
+    const savedAddress =
+      localStorage.getItem("@SaborEArte:customerAddress") || ""
     setFormData({ name: savedName, phone: savedPhone, address: savedAddress })
 
     const checkStatus = () => {
@@ -51,8 +66,8 @@ export default function CarrinhoPage() {
   }, [])
 
   useEffect(() => {
-    localStorage.setItem("@SaborEArte:customerName",    formData.name)
-    localStorage.setItem("@SaborEArte:customerPhone",   formData.phone)
+    localStorage.setItem("@SaborEArte:customerName", formData.name)
+    localStorage.setItem("@SaborEArte:customerPhone", formData.phone)
     localStorage.setItem("@SaborEArte:customerAddress", formData.address)
   }, [formData])
 
@@ -63,7 +78,10 @@ export default function CarrinhoPage() {
   }
 
   // Chamado quando o pagamento é aprovado ou fica pendente (Pix)
-  const handlePaymentSuccess = (status: "approved" | "pending", pix?: { qrCode?: string; qrCodeBase64?: string }) => {
+  const handlePaymentSuccess = (
+    status: "approved" | "pending",
+    pix?: { qrCode?: string; qrCodeBase64?: string }
+  ) => {
     setPaymentStatus(status)
     if (pix) setPixData(pix)
     clearCart()
@@ -75,7 +93,6 @@ export default function CarrinhoPage() {
       <Header />
       <main className="min-h-screen pt-24 pb-20 sm:pt-28">
         <div className="mx-auto max-w-3xl px-4 lg:px-8">
-
           {/* Cabeçalho */}
           {step !== "confirmation" && (
             <div className="mb-8 flex items-center gap-4">
@@ -88,7 +105,9 @@ export default function CarrinhoPage() {
               <div>
                 <h1 className="text-2xl font-bold sm:text-3xl">Seu Pedido</h1>
                 <p className="text-muted-foreground text-sm">
-                  {totalItems > 0 ? `${totalItems} itens no carrinho` : "Carrinho vazio"}
+                  {totalItems > 0
+                    ? `${totalItems} itens no carrinho`
+                    : "Carrinho vazio"}
                 </p>
               </div>
             </div>
@@ -99,7 +118,9 @@ export default function CarrinhoPage() {
             <div className="border-destructive/30 bg-destructive/10 mb-6 flex items-center gap-3 rounded-lg border p-4">
               <AlertCircle className="text-destructive h-5 w-5 shrink-0" />
               <div>
-                <p className="text-destructive text-sm font-semibold">Loja Fechada</p>
+                <p className="text-destructive text-sm font-semibold">
+                  Loja Fechada
+                </p>
                 <p className="text-destructive/80 text-xs">{statusMsg}</p>
               </div>
             </div>
@@ -121,7 +142,6 @@ export default function CarrinhoPage() {
           {/* ETAPAS PRINCIPAIS */}
           {step !== "confirmation" && items.length > 0 && (
             <div className="flex flex-col gap-8">
-
               {/* ETAPA 1: LISTA DO CARRINHO */}
               {step === "cart" && (
                 <div className="flex flex-col gap-6">
@@ -153,7 +173,9 @@ export default function CarrinhoPage() {
                   <CheckoutForm
                     formData={formData}
                     setFormData={setFormData}
-                    onAddressComplete={(fee, qId) => handleAddressComplete(fee, qId)}
+                    onAddressComplete={(fee, qId) =>
+                      handleAddressComplete(fee, qId)
+                    }
                     setIsCalculating={setIsCalculating}
                   />
 
@@ -162,7 +184,12 @@ export default function CarrinhoPage() {
                     deliveryFee={deliveryFee}
                     isCalculating={isCalculating}
                     loading={false}
-                    disabled={!formData.name || !formData.address || !storeOpen || !quotationId}
+                    disabled={
+                      !formData.name ||
+                      !formData.address ||
+                      !storeOpen ||
+                      !quotationId
+                    }
                     onProcessPayment={() => setStep("payment")}
                   />
                 </div>
@@ -179,7 +206,9 @@ export default function CarrinhoPage() {
                   </button>
 
                   <div className="border-border bg-card rounded-xl border p-4 shadow-sm sm:p-6">
-                    <h2 className="text-foreground mb-4 text-lg font-bold">Pagamento</h2>
+                    <h2 className="text-foreground mb-4 text-lg font-bold">
+                      Pagamento
+                    </h2>
                     <MercadoPagoCheckout
                       items={items}
                       payer={{
@@ -189,16 +218,18 @@ export default function CarrinhoPage() {
                       }}
                       deliveryFee={deliveryFee || 0}
                       quotationId={quotationId}
-                      onSuccess={(status, pix) => handlePaymentSuccess(status, pix)}
-                      onError={() => alert("Erro no pagamento. Tente novamente.")}
+                      onSuccess={(status, pix) =>
+                        handlePaymentSuccess(status, pix)
+                      }
+                      onError={() =>
+                        alert("Erro no pagamento. Tente novamente.")
+                      }
                     />
                   </div>
                 </div>
               )}
-
             </div>
           )}
-
         </div>
       </main>
     </>

@@ -7,7 +7,10 @@ export async function POST(request: NextRequest) {
     const { items, payer, deliveryFee, quotationId } = await request.json()
 
     if (!MP_ACCESS_TOKEN) {
-      return NextResponse.json({ error: "Mercado Pago não configurado" }, { status: 500 })
+      return NextResponse.json(
+        { error: "Mercado Pago não configurado" },
+        { status: 500 }
+      )
     }
 
     // Monta os itens do pedido
@@ -54,20 +57,26 @@ export async function POST(request: NextRequest) {
       expiration_date_to: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // Expira em 30 min
     }
 
-    const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
-      },
-      body: JSON.stringify(preference),
-    })
+    const response = await fetch(
+      "https://api.mercadopago.com/checkout/preferences",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
+        },
+        body: JSON.stringify(preference),
+      }
+    )
 
     const result = await response.json()
 
     if (!response.ok) {
       console.error("MP Error:", result)
-      return NextResponse.json({ error: "Erro ao criar preferência de pagamento" }, { status: response.status })
+      return NextResponse.json(
+        { error: "Erro ao criar preferência de pagamento" },
+        { status: response.status }
+      )
     }
 
     return NextResponse.json({
@@ -75,6 +84,9 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("MP API error:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Erro interno do servidor" },
+      { status: 500 }
+    )
   }
 }

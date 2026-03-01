@@ -8,7 +8,10 @@ interface MercadoPagoCheckoutProps {
   payer: { name: string; phone: string; address: string }
   deliveryFee: number
   quotationId: string
-  onSuccess: (status: "approved" | "pending", pix?: { qrCode?: string; qrCodeBase64?: string }) => void
+  onSuccess: (
+    status: "approved" | "pending",
+    pix?: { qrCode?: string; qrCodeBase64?: string }
+  ) => void
   onError: () => void
 }
 
@@ -61,62 +64,68 @@ export function MercadoPagoCheckout({
           const bricksBuilder = mp.bricks()
 
           // 3. Renderiza o Brick de pagamento
-          brickRef.current = await bricksBuilder.create("payment", "mp-payment-brick", {
-            initialization: {
-              amount: items.reduce((acc, i) => acc + i.price * i.quantity, 0) + deliveryFee,
-              preferenceId,
-            },
-            customization: {
-              paymentMethods: {
-                creditCard: "all",
-                debitCard: "all",
-                ticket: "none",
-                bankTransfer: "none",
-                atm: "none",
+          brickRef.current = await bricksBuilder.create(
+            "payment",
+            "mp-payment-brick",
+            {
+              initialization: {
+                amount:
+                  items.reduce((acc, i) => acc + i.price * i.quantity, 0) +
+                  deliveryFee,
+                preferenceId,
               },
-              visual: {
-                style: {
-                  theme: "dark",
+              customization: {
+                paymentMethods: {
+                  creditCard: "all",
+                  debitCard: "all",
+                  ticket: "none",
+                  bankTransfer: "none",
+                  atm: "none",
+                },
+                visual: {
+                  style: {
+                    theme: "dark",
+                  },
                 },
               },
-            },
-            callbacks: {
-              onReady: () => setLoading(false),
-              onSubmit: async ({ formData }: any) => {
-                const response = await fetch("/api/mercadopago/process", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    formData,
-                    metadata: {
-                      quotationId,
-                      customerName: payer.name,
-                      customerPhone: payer.phone,
-                      deliveryAddress: payer.address,
-                    },
-                  }),
-                })
-
-                const result = await response.json()
-
-                if (result.status === "approved") {
-                  onSuccess("approved")
-                } else if (result.status === "pending") {
-                  // Pix — passa os dados do QR Code para exibir na tela
-                  onSuccess("pending", {
-                    qrCode: result.pixQrCode,
-                    qrCodeBase64: result.pixQrCodeBase64,
+              callbacks: {
+                onReady: () => setLoading(false),
+                onSubmit: async ({ formData }: any) => {
+                  const response = await fetch("/api/mercadopago/process", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      formData,
+                      metadata: {
+                        quotationId,
+                        customerName: payer.name,
+                        customerPhone: payer.phone,
+                        deliveryAddress: payer.address,
+                      },
+                    }),
                   })
-                } else {
+
+                  const result = await response.json()
+
+                  if (result.status === "approved") {
+                    onSuccess("approved")
+                  } else if (result.status === "pending") {
+                    // Pix — passa os dados do QR Code para exibir na tela
+                    onSuccess("pending", {
+                      qrCode: result.pixQrCode,
+                      qrCodeBase64: result.pixQrCodeBase64,
+                    })
+                  } else {
+                    onError()
+                  }
+                },
+                onError: () => {
+                  setError(true)
                   onError()
-                }
+                },
               },
-              onError: () => {
-                setError(true)
-                onError()
-              },
-            },
-          })
+            }
+          )
         }
       } catch (err) {
         console.error("MP init error:", err)
@@ -140,8 +149,12 @@ export function MercadoPagoCheckout({
   if (error) {
     return (
       <div className="flex flex-col items-center gap-3 py-8 text-center">
-        <p className="text-destructive font-medium">Erro ao carregar o pagamento.</p>
-        <p className="text-muted-foreground text-sm">Tente recarregar a página.</p>
+        <p className="text-destructive font-medium">
+          Erro ao carregar o pagamento.
+        </p>
+        <p className="text-muted-foreground text-sm">
+          Tente recarregar a página.
+        </p>
       </div>
     )
   }
@@ -153,7 +166,10 @@ export function MercadoPagoCheckout({
           <Loader2 className="text-primary h-8 w-8 animate-spin" />
         </div>
       )}
-      <div id="mp-payment-brick" className={loading ? "invisible" : "visible"} />
+      <div
+        id="mp-payment-brick"
+        className={loading ? "invisible" : "visible"}
+      />
     </div>
   )
 }
