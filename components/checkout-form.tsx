@@ -45,9 +45,9 @@ export function CheckoutForm({
       const response = await fetch("/api/lalamove", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          action: "quote", 
-          destinationAddress: address 
+        body: JSON.stringify({
+          action: "quote",
+          destinationAddress: address,
         }),
       })
 
@@ -69,7 +69,7 @@ export function CheckoutForm({
     if (debounceTimer.current) clearTimeout(debounceTimer.current)
 
     const address = formData.address.trim()
-    
+
     if (address.length >= 10) {
       debounceTimer.current = setTimeout(() => {
         fetchDeliveryFee(address)
@@ -88,7 +88,10 @@ export function CheckoutForm({
       <div className="flex flex-col gap-4">
         {/* Campo Nome */}
         <div>
-          <label htmlFor="name" className="text-foreground mb-1.5 flex items-center gap-2 text-sm font-medium">
+          <label
+            htmlFor="name"
+            className="text-foreground mb-1.5 flex items-center gap-2 text-sm font-medium"
+          >
             <User className="text-primary h-4 w-4" /> Nome Completo
           </label>
           <input
@@ -99,13 +102,16 @@ export function CheckoutForm({
             value={formData.name}
             onChange={handleChange}
             placeholder="Como te chamamos?"
-            className="border-border bg-input text-foreground focus:ring-primary/20 h-11 w-full rounded-lg border px-4 text-sm focus:ring-2 focus:outline-none cursor-text"
+            className="border-border bg-input text-foreground focus:ring-primary/20 h-11 w-full cursor-text rounded-lg border px-4 text-sm focus:ring-2 focus:outline-none"
           />
         </div>
 
         {/* Campo Telefone */}
         <div>
-          <label htmlFor="phone" className="text-foreground mb-1.5 flex items-center gap-2 text-sm font-medium">
+          <label
+            htmlFor="phone"
+            className="text-foreground mb-1.5 flex items-center gap-2 text-sm font-medium"
+          >
             <Phone className="text-primary h-4 w-4" /> WhatsApp
           </label>
           <input
@@ -116,13 +122,16 @@ export function CheckoutForm({
             value={formData.phone}
             onChange={handleChange}
             placeholder="(11) 99999-9999"
-            className="border-border bg-input text-foreground focus:ring-primary/20 h-11 w-full rounded-lg border px-4 text-sm focus:ring-2 focus:outline-none cursor-text"
+            className="border-border bg-input text-foreground focus:ring-primary/20 h-11 w-full cursor-text rounded-lg border px-4 text-sm focus:ring-2 focus:outline-none"
           />
         </div>
 
         {/* Campo Endereço */}
         <div>
-          <label htmlFor="address" className="text-foreground mb-1.5 flex items-center gap-2 text-sm font-medium">
+          <label
+            htmlFor="address"
+            className="text-foreground mb-1.5 flex items-center gap-2 text-sm font-medium"
+          >
             <MapPin className="text-primary h-4 w-4" /> Endereço Completo
           </label>
           <div className="relative">
@@ -134,15 +143,15 @@ export function CheckoutForm({
               value={formData.address}
               onChange={handleChange}
               placeholder="Rua, número e bairro"
-              className="border-border bg-input text-foreground focus:ring-primary/20 h-11 w-full rounded-lg border px-4 pr-10 text-sm focus:ring-2 focus:outline-none cursor-text"
+              className="border-border bg-input text-foreground focus:ring-primary/20 h-11 w-full cursor-text rounded-lg border px-4 pr-10 text-sm focus:ring-2 focus:outline-none"
             />
             {internalLoading && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <div className="absolute top-1/2 right-3 -translate-y-1/2">
+                <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
               </div>
             )}
           </div>
-          <p className="text-[10px] text-muted-foreground mt-1 ml-1">
+          <p className="text-muted-foreground mt-1 ml-1 text-[10px]">
             O frete é calculado automaticamente ao preencher o endereço.
           </p>
         </div>
