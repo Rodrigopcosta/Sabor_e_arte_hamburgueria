@@ -52,9 +52,9 @@ export async function POST(request: NextRequest) {
         delivery_address: payer.address,
       },
       statement_descriptor: "SABOR E ARTE",
-      expires: true,
-      expiration_date_from: new Date().toISOString(),
-      expiration_date_to: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // Expira em 30 min
+      // expires: true,
+      // expiration_date_from: new Date().toISOString(),
+      // expiration_date_to: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // Expira em 30 min
     }
 
     const response = await fetch(
