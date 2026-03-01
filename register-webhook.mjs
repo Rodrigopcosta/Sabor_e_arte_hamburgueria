@@ -4,7 +4,7 @@ const API_KEY = "pk_test_74b652775983e742fb80e1177c46e146"
 const API_SECRET =
   "sk_test_N9VPVg0VjGfqtx9Faj9tWoOl1N15fN0nzOp9VaMTk5DrKPCpGEm+PGkwGzJQwWV9"
 const BASE_URL = "https://rest.sandbox.lalamove.com"
-const WEBHOOK_URL = "https://sabor-e-arte-hamburgueria-git-main-rodrigos-projects-99107bc0.vercel.app/api/lalamove"
+const WEBHOOK_URL = "https://saboreartes.com.br/api/lalamove"
 
 function generateSignature(method, path, body, timestamp) {
   const rawSignature = `${timestamp}\r\n${method}\r\n${path}\r\n\r\n${body}`
