@@ -10,6 +10,9 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || ""
 const STORE_NAME = "Sabor e Arte"
 const STORE_PHONE = "+5511979643448"
 
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
+
 // --- FUNÇÕES DE AUXÍLIO ---
 
 function generateSignature(method: string, path: string, body: string, timestamp: string) {
@@ -42,8 +45,24 @@ async function getCoordinates(address: string) {
   }
 }
 
+async function sendTelegram(message: string) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHAT_ID,
+        text: message,
+        parse_mode: "Markdown",
+      }),
+    })
+  } catch (error) {
+    console.error("[Telegram] Erro:", error)
+  }
+}
+
 // --- WEBHOOK (GET) ---
-// A Lalamove bate aqui para verificar se o host está acessível.
 
 export async function GET() {
   return NextResponse.json({ ok: true }, { status: 200 })
@@ -57,17 +76,14 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json()
   } catch {
-    // Body vazio ou inválido — pode ser o health check da Lalamove via POST
     return NextResponse.json({ ok: true }, { status: 200 })
   }
 
-  // Sem nenhum campo reconhecido — responde 200 para não bloquear validação
   if (!body || (!body.action && !body.eventType)) {
     return NextResponse.json({ ok: true }, { status: 200 })
   }
 
   try {
-    // Chamada do front-end
     if (body.action) {
       if (!LALAMOVE_API_KEY || !LALAMOVE_API_SECRET) {
         return handleSimulated(body.action, body)
@@ -80,7 +96,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Webhook da Lalamove
     if (body.eventType) {
       return handleWebhook(body, request)
     }
@@ -109,29 +124,34 @@ async function handleWebhook(body: any, request: NextRequest) {
   }
 
   const { eventType, data } = body
-  const orderId = data?.order?.orderId || data?.orderId || "—"
-  const status  = data?.order?.status  || "—"
+  const orderId   = data?.order?.orderId || data?.orderId || "—"
+  const status    = data?.order?.status  || "—"
+  const driver    = data?.order?.driver  || data?.driver  || null
+  const shareLink = data?.order?.shareLink || "—"
 
-  const statusMessages: Record<string, string> = {
-    ASSIGNING_DRIVER: "🔍 Procurando motoboy...",
-    ON_GOING:         "🏍️ Motoboy a caminho da retirada",
-    PICKED_UP:        "✅ Pedido retirado! Indo até o cliente",
-    COMPLETED:        "🎉 Pedido entregue com sucesso!",
-    CANCELED:         "❌ Pedido cancelado",
-    REJECTED:         "❌ Pedido rejeitado",
-    EXPIRED:          "⏰ Pedido expirado sem motoboy",
-  }
+  const driverInfo = driver
+    ? `\n🏍️ *Motorista:* ${driver.name}\n📱 *Telefone:* ${driver.phone}\n🚗 *Placa:* ${driver.plateNumber || "—"}`
+    : ""
 
   if (eventType === "ORDER_STATUS_CHANGED") {
-    const message = statusMessages[status] || `Status: ${status}`
-    const driver  = data?.order?.driver
-    // TODO: await notifyOwner(STORE_PHONE, `Pedido ${orderId}: ${message}`)
-    console.log(`[Webhook] Pedido ${orderId} → ${message}`, driver ?? "")
+    const messages: Record<string, string> = {
+      ASSIGNING_DRIVER: `🔍 *Procurando motoboy...*\n\n🆔 Pedido: \`${orderId}\`\n\nAguarde, estamos localizando um entregador disponível.`,
+      ON_GOING:         `🏍️ *Motoboy a caminho da retirada!*\n\n🆔 Pedido: \`${orderId}\`${driverInfo}\n\n📍 [Rastrear entrega](${shareLink})`,
+      PICKED_UP:        `📦 *Pedido retirado!*\n\n🆔 Pedido: \`${orderId}\`${driverInfo}\n\nO entregador está indo até o cliente agora.\n\n📍 [Rastrear entrega](${shareLink})`,
+      COMPLETED:        `✅ *Pedido entregue com sucesso!*\n\n🆔 Pedido: \`${orderId}\`\n\nEntrega concluída. 🎉`,
+      CANCELED:         `❌ *Pedido cancelado*\n\n🆔 Pedido: \`${orderId}\`\n\nVerifique o painel da Lalamove para mais detalhes.`,
+      REJECTED:         `❌ *Pedido rejeitado*\n\n🆔 Pedido: \`${orderId}\`\n\nNenhum motoboy aceitou. Tente novamente.`,
+      EXPIRED:          `⏰ *Pedido expirado*\n\n🆔 Pedido: \`${orderId}\`\n\nNenhum motoboy disponível no momento.`,
+    }
+
+    const message = messages[status]
+    if (message) await sendTelegram(message)
   }
 
   if (eventType === "DRIVER_ASSIGNED") {
-    const driver = data?.driver
-    console.log(`[Webhook] Motorista atribuído ao pedido ${orderId}:`, driver)
+    await sendTelegram(
+      `🏍️ *Motoboy confirmado!*\n\n🆔 Pedido: \`${orderId}\`${driverInfo}\n\n📍 [Rastrear entrega](${shareLink})`
+    )
   }
 
   return NextResponse.json({ received: true }, { status: 200 })
