@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import crypto from "crypto"
 
-const LALAMOVE_BASE_URL =
-  process.env.LALAMOVE_API_URL || "https://rest.sandbox.lalamove.com"
+const LALAMOVE_BASE_URL = process.env.LALAMOVE_API_URL || "https://rest.sandbox.lalamove.com"
 const LALAMOVE_API_KEY = process.env.LALAMOVE_API_KEY || ""
 const LALAMOVE_API_SECRET = process.env.LALAMOVE_API_SECRET || ""
 const LALAMOVE_MARKET = process.env.LALAMOVE_MARKET || "BR"
@@ -13,17 +12,9 @@ const STORE_PHONE = "+5511979643448"
 
 // --- FUNÇÕES DE AUXÍLIO ---
 
-function generateSignature(
-  method: string,
-  path: string,
-  body: string,
-  timestamp: string
-) {
+function generateSignature(method: string, path: string, body: string, timestamp: string) {
   const rawSignature = `${timestamp}\r\n${method}\r\n${path}\r\n\r\n${body}`
-  return crypto
-    .createHmac("sha256", LALAMOVE_API_SECRET)
-    .update(rawSignature)
-    .digest("hex")
+  return crypto.createHmac("sha256", LALAMOVE_API_SECRET).update(rawSignature).digest("hex")
 }
 
 function getAuthHeaders(method: string, path: string, body: string) {
@@ -53,56 +44,56 @@ async function getCoordinates(address: string) {
 
 // --- WEBHOOK (GET) ---
 // A Lalamove bate aqui para verificar se o host está acessível.
-// Deve retornar 200 imediatamente — sem lógica, sem validação.
 
 export async function GET() {
   return NextResponse.json({ ok: true }, { status: 200 })
 }
 
-// --- WEBHOOK + HANDLER PRINCIPAL (POST) ---
-// Toda comunicação acontece via POST:
-// → Chamadas do seu front-end (action: quote | order | status)
-// → Notificações de status da Lalamove (eventType: ORDER_STATUS_CHANGED etc.)
+// --- HANDLER PRINCIPAL (POST) ---
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
+  let body: any = null
 
-    // Se vier "action" é uma chamada do seu front-end
+  try {
+    body = await request.json()
+  } catch {
+    // Body vazio ou inválido — pode ser o health check da Lalamove via POST
+    return NextResponse.json({ ok: true }, { status: 200 })
+  }
+
+  // Sem nenhum campo reconhecido — responde 200 para não bloquear validação
+  if (!body || (!body.action && !body.eventType)) {
+    return NextResponse.json({ ok: true }, { status: 200 })
+  }
+
+  try {
+    // Chamada do front-end
     if (body.action) {
       if (!LALAMOVE_API_KEY || !LALAMOVE_API_SECRET) {
         return handleSimulated(body.action, body)
       }
       switch (body.action) {
-        case "quote":
-          return handleQuote(body)
-        case "order":
-          return handleOrder(body)
-        case "status":
-          return handleStatus(body)
-        default:
-          return NextResponse.json({ error: "Ação inválida" }, { status: 400 })
+        case "quote":  return handleQuote(body)
+        case "order":  return handleOrder(body)
+        case "status": return handleStatus(body)
+        default:       return NextResponse.json({ error: "Ação inválida" }, { status: 400 })
       }
     }
 
-    // Se vier "eventType" é um webhook da Lalamove
+    // Webhook da Lalamove
     if (body.eventType) {
       return handleWebhook(body, request)
     }
 
-    return NextResponse.json({ error: "Requisição inválida" }, { status: 400 })
+    return NextResponse.json({ ok: true }, { status: 200 })
   } catch {
-    return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
 
 // --- HANDLER DO WEBHOOK ---
 
 async function handleWebhook(body: any, request: NextRequest) {
-  // 1. Validar assinatura — confirma que veio da Lalamove de verdade
   const token = request.headers.get("Authorization") || ""
   const parts = token.replace("hmac ", "").split(":")
 
@@ -110,57 +101,39 @@ async function handleWebhook(body: any, request: NextRequest) {
     const [apiKey, timestamp, receivedSignature] = parts
     const urlPath = "/api/lalamove"
     const rawBody = JSON.stringify(body)
-    const expectedSignature = generateSignature(
-      "POST",
-      urlPath,
-      rawBody,
-      timestamp
-    )
+    const expectedSignature = generateSignature("POST", urlPath, rawBody, timestamp)
 
-    if (
-      apiKey !== LALAMOVE_API_KEY ||
-      receivedSignature !== expectedSignature
-    ) {
-      return NextResponse.json(
-        { error: "Assinatura inválida" },
-        { status: 401 }
-      )
+    if (apiKey !== LALAMOVE_API_KEY || receivedSignature !== expectedSignature) {
+      return NextResponse.json({ error: "Assinatura inválida" }, { status: 401 })
     }
   }
 
-  // 2. Processar o evento
   const { eventType, data } = body
   const orderId = data?.order?.orderId || data?.orderId || "—"
-  const status = data?.order?.status || "—"
+  const status  = data?.order?.status  || "—"
 
   const statusMessages: Record<string, string> = {
     ASSIGNING_DRIVER: "🔍 Procurando motoboy...",
-    ON_GOING: "🏍️ Motoboy a caminho da retirada",
-    PICKED_UP: "✅ Pedido retirado! Indo até o cliente",
-    COMPLETED: "🎉 Pedido entregue com sucesso!",
-    CANCELED: "❌ Pedido cancelado",
-    REJECTED: "❌ Pedido rejeitado",
-    EXPIRED: "⏰ Pedido expirado sem motoboy",
+    ON_GOING:         "🏍️ Motoboy a caminho da retirada",
+    PICKED_UP:        "✅ Pedido retirado! Indo até o cliente",
+    COMPLETED:        "🎉 Pedido entregue com sucesso!",
+    CANCELED:         "❌ Pedido cancelado",
+    REJECTED:         "❌ Pedido rejeitado",
+    EXPIRED:          "⏰ Pedido expirado sem motoboy",
   }
 
   if (eventType === "ORDER_STATUS_CHANGED") {
     const message = statusMessages[status] || `Status: ${status}`
-    const driver = data?.order?.driver
-
-    // TODO: Envie o WhatsApp para o dono aqui
-    // Exemplo com Z-API / Evolution API:
-    // await notifyOwner(STORE_PHONE, `Pedido ${orderId}: ${message}`)
+    const driver  = data?.order?.driver
+    // TODO: await notifyOwner(STORE_PHONE, `Pedido ${orderId}: ${message}`)
     console.log(`[Webhook] Pedido ${orderId} → ${message}`, driver ?? "")
   }
 
   if (eventType === "DRIVER_ASSIGNED") {
     const driver = data?.driver
     console.log(`[Webhook] Motorista atribuído ao pedido ${orderId}:`, driver)
-    // TODO: avisar o dono que o motoboy aceitou e está a caminho
   }
 
-  // Sempre responde 200 — se não responder, a Lalamove tenta mais 9x em 24h
-  // e depois desativa o webhook
   return NextResponse.json({ received: true }, { status: 200 })
 }
 
@@ -179,13 +152,12 @@ async function handleQuote(data: { destinationAddress: string }) {
 
   const payload = {
     data: {
-      serviceType: "LALAGO", // Em produção BR: testar "MOTORCYCLE"
+      serviceType: "LALAGO",
       language: "pt_BR",
       stops: [
         {
           coordinates: { lat: "-23.593539", lng: "-46.748802" },
-          address:
-            "Rua Jose Silvano Filho, 113 - Jardim Lucia, Sao Paulo - SP, 05750-250, BR",
+          address: "Rua Jose Silvano Filho, 113 - Jardim Lucia, Sao Paulo - SP, 05750-250, BR",
         },
         {
           coordinates: { lat: destCoords.lat, lng: destCoords.lng },
@@ -203,11 +175,7 @@ async function handleQuote(data: { destinationAddress: string }) {
 
   const body = JSON.stringify(payload)
   const headers = getAuthHeaders("POST", path, body)
-  const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, {
-    method: "POST",
-    headers,
-    body,
-  })
+  const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, { method: "POST", headers, body })
   const result = await response.json()
 
   if (!response.ok) {
@@ -254,11 +222,7 @@ async function handleOrder(data: {
 
   const body = JSON.stringify(payload)
   const headers = getAuthHeaders("POST", path, body)
-  const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, {
-    method: "POST",
-    headers,
-    body,
-  })
+  const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, { method: "POST", headers, body })
   const result = await response.json()
 
   if (!response.ok) {
@@ -280,17 +244,11 @@ async function handleOrder(data: {
 async function handleStatus(data: { orderId: string }) {
   const path = `/v3/orders/${data.orderId}`
   const headers = getAuthHeaders("GET", path, "")
-  const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, {
-    method: "GET",
-    headers,
-  })
+  const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, { method: "GET", headers })
   const result = await response.json()
 
   if (!response.ok) {
-    return NextResponse.json(
-      { error: "Erro ao buscar status" },
-      { status: response.status }
-    )
+    return NextResponse.json({ error: "Erro ao buscar status" }, { status: response.status })
   }
 
   return NextResponse.json({
