@@ -16,7 +16,7 @@ interface CheckoutFormProps {
       address: string
     }>
   >
-  onAddressComplete: (fee: number) => void
+  onAddressComplete: (fee: number, quotationId: string) => void
   setIsCalculating: Dispatch<SetStateAction<boolean>>
 }
 
@@ -34,7 +34,6 @@ export function CheckoutForm({
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  // Função isolada para chamada da API
   const fetchDeliveryFee = async (address: string) => {
     if (address.length < 10) return
 
@@ -53,8 +52,12 @@ export function CheckoutForm({
 
       const data = await response.json()
 
-      if (response.ok && typeof data.totalFee === "number") {
-        onAddressComplete(data.totalFee)
+      if (
+        response.ok &&
+        typeof data.totalFee === "number" &&
+        data.quotationId
+      ) {
+        onAddressComplete(data.totalFee, data.quotationId)
       }
     } catch (error) {
       console.error("Erro ao calcular frete:", error)
@@ -64,7 +67,6 @@ export function CheckoutForm({
     }
   }
 
-  // Efeito que monitora o endereço (Resolve o preenchimento automático)
   useEffect(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current)
 
@@ -73,7 +75,7 @@ export function CheckoutForm({
     if (address.length >= 10) {
       debounceTimer.current = setTimeout(() => {
         fetchDeliveryFee(address)
-      }, 1000) // Aguarda 1s após a última alteração para disparar
+      }, 1000)
     }
 
     return () => {
