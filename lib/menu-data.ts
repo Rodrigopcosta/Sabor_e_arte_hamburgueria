@@ -46,8 +46,8 @@ export const menuItems: MenuItem[] = [
     name: "Combo X-Burguer",
     description:
       "X-Burguer suculento com Coca-Cola bem gelada. Ideal para uma refeição rápida e saborosa.",
-    price: 27.9,
-    image: "/images/xburguer-combo.jpg",
+    price: 19.9,
+    image: "/images/xburguer-combos.jpeg",
     category: "combos",
     includes: ["1x X-Burguer Clássico", "1x Coca-Cola Lata 350ml"],
   },
@@ -57,9 +57,9 @@ export const menuItems: MenuItem[] = [
     id: "xsalada-avulso",
     name: "X-Salada Artesanal",
     description:
-      "Pão brioche macio, blend bovino 150g, queijo prato, alface crocante, tomate fresquinho e maionese da casa.",
+      "Pão brioche macio, hamburguer bovino 150g, queijo prato, alface crocante, tomate fresquinho e maionese da casa.",
     price: 24.9,
-    image: "/images/xsalada.jpg",
+    image: "/images/xsalada.jpeg",
     category: "lanches",
     tags: ["Popular"],
   },
@@ -85,11 +85,11 @@ export const menuItems: MenuItem[] = [
   },
   {
     id: "batata-cheddar",
-    name: "Batata com Cheddar & Bacon",
+    name: "Batata com Cheddar",
     description:
-      "Batata crocante coberta com muito cheddar cremoso e bacon em cubos. Irresistível.",
-    price: 22.9,
-    image: "/images/batata-cheddar.jpg",
+      "Batata crocante coberta com muito cheddar cremoso. Irresistível.",
+    price: 19.9,
+    image: "/images/batata-cheddar.jpeg",
     category: "acompanhamentos",
     tags: ["Favorito"],
   },
