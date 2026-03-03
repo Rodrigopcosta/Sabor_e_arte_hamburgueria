@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: false, // TEMP: reativar após testes do MP
   typescript: {
     ignoreBuildErrors: true,
   },

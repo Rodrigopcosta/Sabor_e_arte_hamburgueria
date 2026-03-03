@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const MP_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN || ""
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://saboreartes.com.br"
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,12 +14,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Monta os itens do pedido
+    // Monta os itens do pedido com preço arredondado para 2 casas decimais
     const mpItems = items.map((item: any) => ({
       id: item.id,
       title: item.name,
       quantity: item.quantity,
-      unit_price: item.price,
+      unit_price: parseFloat(item.price.toFixed(2)),
       currency_id: "BRL",
     }))
 
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
         id: "delivery",
         title: "Taxa de entrega",
         quantity: 1,
-        unit_price: deliveryFee,
+        unit_price: parseFloat(deliveryFee.toFixed(2)),
         currency_id: "BRL",
       })
     }
@@ -52,9 +53,13 @@ export async function POST(request: NextRequest) {
         delivery_address: payer.address,
       },
       statement_descriptor: "SABOR E ARTE",
-      // expires: true,
-      // expiration_date_from: new Date().toISOString(),
-      // expiration_date_to: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // Expira em 30 min
+      // URLs de retorno após o pagamento
+      back_urls: {
+        success: `${BASE_URL}/pedido/sucesso`,
+        failure: `${BASE_URL}/carrinho`,
+        pending: `${BASE_URL}/pedido/pendente`,
+      },
+      auto_return: "approved", // Redireciona automaticamente após aprovação
     }
 
     const response = await fetch(
@@ -79,15 +84,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(
-      "Preferência criada:",
-      result.id,
-      "| collector_id:",
-      result.collector_id
-    )
-
     return NextResponse.json({
       preferenceId: result.id,
+      initPoint: result.init_point,             // URL de produção
+      sandboxInitPoint: result.sandbox_init_point, // URL de sandbox/teste
     })
   } catch (error) {
     console.error("MP API error:", error)
