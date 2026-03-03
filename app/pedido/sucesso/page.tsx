@@ -1,20 +1,19 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { Suspense, useEffect, useState, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { CheckCircle, Loader2 } from "lucide-react"
 import { Header } from "@/components/header"
 import { useCart } from "@/lib/cart-context"
 
-export default function PedidoSucessoPage() {
+function PedidoSucessoContent() {
   const searchParams = useSearchParams()
   const { clearCart } = useCart()
   const processedRef = useRef(false)
 
   const [loading, setLoading] = useState(true)
   const [customerName, setCustomerName] = useState("")
-  const [paymentMethod, setPaymentMethod] = useState("")
 
   useEffect(() => {
     if (processedRef.current) return
@@ -121,5 +120,13 @@ export default function PedidoSucessoPage() {
         </div>
       </main>
     </>
+  )
+}
+
+export default function PedidoSucessoPage() {
+  return (
+    <Suspense fallback={null}>
+      <PedidoSucessoContent />
+    </Suspense>
   )
 }
