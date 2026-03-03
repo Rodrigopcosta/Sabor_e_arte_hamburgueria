@@ -100,7 +100,7 @@ export const menuItems: MenuItem[] = [
     name: "Coca-Cola Lata",
     description: "Lata de 350ml gelada.",
     price: 7.9,
-    image: "/images/coca-cola.jpg",
+    image: "/images/coca-cola.png",
     category: "bebidas",
   },
   {
@@ -108,7 +108,7 @@ export const menuItems: MenuItem[] = [
     name: "Guaraná Antarctica Lata",
     description: "Lata de 350ml gelada.",
     price: 6.9,
-    image: "/images/guarana.jpg",
+    image: "/images/guarana.png",
     category: "bebidas",
   },
 ]
