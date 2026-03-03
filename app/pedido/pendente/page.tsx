@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Clock, Share2 } from "lucide-react"
 import { Header } from "@/components/header"
 import { useCart } from "@/lib/cart-context"
 
-export default function PedidoPendentePage() {
+function PedidoPendenteContent() {
   const searchParams = useSearchParams()
   const { clearCart } = useCart()
 
@@ -65,7 +65,7 @@ export default function PedidoPendentePage() {
                   ID do pagamento
                 </p>
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-foreground text-xs font-mono">{paymentId}</p>
+                  <p className="text-foreground font-mono text-xs">{paymentId}</p>
                   <button
                     onClick={() => navigator.clipboard.writeText(paymentId)}
                     className="text-primary flex items-center gap-1 text-xs hover:underline"
@@ -90,5 +90,13 @@ export default function PedidoPendentePage() {
         </div>
       </main>
     </>
+  )
+}
+
+export default function PedidoPendentePage() {
+  return (
+    <Suspense fallback={null}>
+      <PedidoPendenteContent />
+    </Suspense>
   )
 }
