@@ -5,7 +5,6 @@ export type MenuItem = {
   price: number
   image: string
   category: "combos" | "lanches" | "acompanhamentos" | "bebidas"
-  tags?: string[]
   includes?: string[]
 }
 
@@ -17,9 +16,8 @@ export const menuItems: MenuItem[] = [
     description:
       "Para dividir e curtir junto! 2 X-Salada bem servidos, 2 Coca-Cola em lata geladinha e 2 porções de batata frita crocante.",
     price: 59.9,
-    image: "/images/combo-casal.png",
+    image: "/images/combo-casal.jpeg",
     category: "combos",
-    tags: ["Mais Vendido", "Melhor Valor"],
     includes: [
       "2x X-Salada Artesanal",
       "2x Batata Frita Média",
@@ -31,10 +29,9 @@ export const menuItems: MenuItem[] = [
     name: "Combo Promocional",
     description:
       "X-Salada caprichado, batata frita crocante e Coca-Cola gelada. O clássico que você já conhece.",
-    price: 34.9,
-    image: "/images/combo-promo.jpg",
+    price: 34.99,
+    image: "/images/combo-xsalada.jpeg",
     category: "combos",
-    tags: ["Promoção"],
     includes: [
       "1x X-Salada Artesanal",
       "1x Batata Frita Pequena",
@@ -51,6 +48,16 @@ export const menuItems: MenuItem[] = [
     category: "combos",
     includes: ["1x X-Burguer Clássico", "1x Coca-Cola Lata 350ml"],
   },
+    {
+    id: "batata-cheddar",
+    name: "Batata com Cheddar",
+    description:
+      "Batata crocante coberta com muito cheddar cremoso mais Coca-Cola gelada. Irresistível.",
+    price: 19.9,
+    image: "/images/batata-cheddar.jpeg",
+    category: "combos",
+    includes: ["1x Batata Frita com cheddar", "1x Coca-Cola Lata 350ml"],
+  },
 
   // --- LANCHES AVULSOS ---
   {
@@ -60,16 +67,6 @@ export const menuItems: MenuItem[] = [
       "Pão brioche macio, hamburguer bovino 150g, queijo prato, alface crocante, tomate fresquinho e maionese da casa.",
     price: 24.9,
     image: "/images/xsalada.jpeg",
-    category: "lanches",
-    tags: ["Popular"],
-  },
-  {
-    id: "xburguer-avulso",
-    name: "X-Burguer Clássico",
-    description:
-      "Pão brioche, blend bovino 150g e muito queijo derretido. O sabor essencial em cada mordida.",
-    price: 21.9,
-    image: "/images/xburguer.png",
     category: "lanches",
   },
 
@@ -82,16 +79,6 @@ export const menuItems: MenuItem[] = [
     price: 15.9,
     image: "/images/batata-frita.png",
     category: "acompanhamentos",
-  },
-  {
-    id: "batata-cheddar",
-    name: "Batata com Cheddar",
-    description:
-      "Batata crocante coberta com muito cheddar cremoso. Irresistível.",
-    price: 19.9,
-    image: "/images/batata-cheddar.jpeg",
-    category: "acompanhamentos",
-    tags: ["Favorito"],
   },
 
   // --- BEBIDAS ---
@@ -134,39 +121,12 @@ export const STORE_INFO = {
   hours: {
     weekdays: { open: 9, close: 18 },
     saturday: { open: 9, close: 23 },
-    sunday: { open: 0, close: 23 }, // Fechado
+    sunday: { open: 0, close: 23 },
   },
 }
 
 export function isStoreOpen(): boolean {
-  return true
-
-  // const now = new Date()
-  // const spTime = new Date(
-  //   now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" })
-  // )
-  // const day = spTime.getDay() // 0: Dom, 1: Seg, ..., 6: Sab
-  // const hour = spTime.getHours()
-  // const minutes = spTime.getMinutes()
-  // const currentTime = hour + minutes / 60
-
-  // // Domingo: Fechado
-  // if (day === 0) return false
-
-  // // Sábado
-  // if (day === 6) {
-  //   return (
-  //     !!STORE_INFO.hours.saturday &&
-  //     currentTime >= STORE_INFO.hours.saturday.open &&
-  //     currentTime < STORE_INFO.hours.saturday.close
-  //   )
-  // }
-
-  // // Dias de semana (Segunda a Sexta)
-  // return (
-  //   currentTime >= STORE_INFO.hours.weekdays.open &&
-  //   currentTime < STORE_INFO.hours.weekdays.close
-  // )
+  return true // Forçado como aberto conforme sua regra atual
 }
 
 export function getStoreStatusMessage(): { open: boolean; message: string } {
@@ -182,7 +142,6 @@ export function getStoreStatusMessage(): { open: boolean; message: string } {
   const day = spTime.getDay()
   const hour = spTime.getHours()
 
-  // Se for domingo ou sábado após o fechamento
   if (
     day === 0 ||
     (day === 6 && hour >= (STORE_INFO.hours.saturday?.close || 0))
@@ -190,7 +149,6 @@ export function getStoreStatusMessage(): { open: boolean; message: string } {
     return { open: false, message: "Fechado - Abrimos segunda às 09:00h" }
   }
 
-  // Se for antes do horário de abrir no dia atual (semana ou sábado)
   const openingHour =
     day === 6 ? STORE_INFO.hours.saturday?.open : STORE_INFO.hours.weekdays.open
   if (hour < (openingHour || 0)) {
@@ -200,7 +158,6 @@ export function getStoreStatusMessage(): { open: boolean; message: string } {
     }
   }
 
-  // Se já fechou no dia de semana
   const tomorrow = day === 5 ? "amanhã (sábado)" : "amanhã"
   const tomorrowOpen =
     day === 5 ? STORE_INFO.hours.saturday?.open : STORE_INFO.hours.weekdays.open

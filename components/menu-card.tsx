@@ -22,38 +22,21 @@ export function MenuCard({ item }: { item: MenuItem }) {
           className="object-cover transition-transform duration-700 group-hover:scale-110"
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
         />
-
-        {/* Overlay escuro na base para o preço */}
-        <div className="absolute inset-0 bg-linear-to-t from-black/70 via-transparent to-transparent opacity-90" />
-
-        {/* Tags */}
-        {item.tags && item.tags.length > 0 && (
-          <div className="absolute top-3 left-3 flex flex-wrap gap-2">
-            {item.tags.map((tag) => (
-              <span
-                key={tag}
-                className="bg-primary rounded-full px-3 py-1 text-[10px] font-black tracking-wider text-white uppercase shadow-lg"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Preço */}
-        <div className="absolute right-3 bottom-3">
-          <span className="bg-primary flex items-center justify-center rounded-xl px-3 py-1.5 text-lg font-black text-white shadow-lg ring-2 ring-white/10">
-            R$ {item.price.toFixed(2).replace(".", ",")}
-          </span>
-        </div>
       </div>
 
       {/* Conteúdo */}
       <div className="flex flex-1 flex-col p-5">
         <div className="mb-2 flex items-start justify-between gap-2">
-          <h3 className="group-hover:text-primary text-lg leading-tight font-bold text-zinc-900 transition-colors">
-            {item.name}
-          </h3>
+          <div className="flex flex-col gap-1">
+            <h3 className="group-hover:text-primary text-lg leading-tight font-bold text-zinc-900 transition-colors">
+              {item.name}
+            </h3>
+            {/* Preço inserido aqui, abaixo do nome, de forma limpa */}
+            <span className="text-primary text-xl font-black">
+              R$ {item.price.toFixed(2).replace(".", ",")}
+            </span>
+          </div>
+          
           {item.category === "combos" && (
             <div title="Melhor custo-benefício" className="text-orange-500">
               <Info className="h-4 w-4" />
