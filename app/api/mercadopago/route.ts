@@ -38,6 +38,12 @@ export async function POST(request: NextRequest) {
       items: mpItems,
       payer: {
         name: payer.name,
+        email: "cliente@saboreartes.com.br",
+        // CPF genérico necessário para habilitar Pix no Brasil
+        identification: {
+          type: "CPF",
+          number: "19119119100",
+        },
         phone: {
           number: payer.phone,
         },
@@ -53,13 +59,12 @@ export async function POST(request: NextRequest) {
         delivery_address: payer.address,
       },
       statement_descriptor: "SABOR E ARTE",
-      // URLs de retorno após o pagamento
       back_urls: {
         success: `${BASE_URL}/pedido/sucesso`,
         failure: `${BASE_URL}/carrinho`,
         pending: `${BASE_URL}/pedido/pendente`,
       },
-      auto_return: "approved", // Redireciona automaticamente após aprovação
+      auto_return: "approved",
     }
 
     const response = await fetch(
@@ -86,8 +91,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       preferenceId: result.id,
-      initPoint: result.init_point,             // URL de produção
-      sandboxInitPoint: result.sandbox_init_point, // URL de sandbox/teste
+      initPoint: result.init_point,
+      sandboxInitPoint: result.sandbox_init_point,
     })
   } catch (error) {
     console.error("MP API error:", error)
