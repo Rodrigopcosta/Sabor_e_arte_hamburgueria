@@ -1,8 +1,25 @@
-# 🍔 Sabor & Artes - Cardápio Digital v1.0
+# 🍔 Sabor & Artes
 
-Este é o sistema de cardápio digital oficial da **Sabor & Artes**, desenvolvido para proporcionar uma experiência de compra rápida, intuitiva e focada na conversão de pedidos via WhatsApp.
+[![License](https://img.shields.io/badge/license-MIT-green)](https://github.com/Rodrigopcosta/Sabor_e_arte_hamburgueria/blob/main/LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC)](https://tailwindcss.com/)
+[![Vercel](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel)](https://currency-converter-nu-livid.vercel.app/)
 
 **🔗 Link do Projeto:** [https://saboreartes.com.br/](https://saboreartes.com.br/)
+
+
+## 📱 Preview do Projeto
+### Desktop
+![Desktop](./public/screenshots/desktop.png)
+
+### Mobile
+![Mobile](./public/screenshots/mobile.png)
+
+
+## 🚀 Sobre o Projeto
+
+Este é o sistema de cardápio digital oficial da **Sabor & Artes**, desenvolvido para proporcionar uma experiência de compra rápida, intuitiva e focada na conversão de pedidos via WhatsApp.
 
 ---
 
@@ -76,5 +93,10 @@ Todo o código-fonte, ativos gráficos e design são de propriedade exclusiva da
 
 ---
 
-> **Desenvolvido por:** Rodrigo  
-> **Data da Documentação:** 28 de Fevereiro de 2026
+## ✍️ Autor
+
+**Rodrigo Costa**
+
+- GitHub: [@Rodrigopcosta](https://github.com/Rodrigopcosta)
+- LinkedIn: [in/rodrigopc-developer](https://www.linkedin.com/in/rodrigopc-developer)
+- Portfolio: [rodrigopcosta.github.io](https://rodrigopcosta.github.io)
