@@ -14,7 +14,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Monta os itens do pedido com preço arredondado para 2 casas decimais
+    if (!items || items.length === 0) {
+      return NextResponse.json(
+        { error: "O pedido deve conter pelo menos um item" },
+        { status: 400 }
+      )
+    }
+
+    // ID único para external_reference (requisito de qualidade do MP)
+    const internalOrderId = `ORDER-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+
     const mpItems = items.map((item: any) => ({
       id: item.id,
       title: item.name,
@@ -23,7 +32,6 @@ export async function POST(request: NextRequest) {
       currency_id: "BRL",
     }))
 
-    // Adiciona o frete como item separado
     if (deliveryFee > 0) {
       mpItems.push({
         id: "delivery",
@@ -38,11 +46,10 @@ export async function POST(request: NextRequest) {
       items: mpItems,
       payer: {
         name: payer.name,
-        email: "cliente@saboreartes.com.br",
-        // CPF genérico necessário para habilitar Pix no Brasil
+        email: payer.email || "cliente@saboreartes.com.br",
         identification: {
           type: "CPF",
-          number: "19119119100",
+          number: payer.cpf || "19119119100", // CPF genérico para habilitar PIX
         },
         phone: {
           number: payer.phone,
@@ -52,7 +59,10 @@ export async function POST(request: NextRequest) {
         excluded_payment_types: [{ id: "ticket" }, { id: "atm" }],
         installments: 1,
       },
+      external_reference: internalOrderId, // Requisito de qualidade do MP
+      notification_url: `${BASE_URL}/api/mercadopago/webhook`,
       metadata: {
+        internal_order_id: internalOrderId,
         quotation_id: quotationId,
         customer_name: payer.name,
         customer_phone: payer.phone,
@@ -93,6 +103,7 @@ export async function POST(request: NextRequest) {
       preferenceId: result.id,
       initPoint: result.init_point,
       sandboxInitPoint: result.sandbox_init_point,
+      internalOrderId,
     })
   } catch (error) {
     console.error("MP API error:", error)
@@ -101,4 +112,8 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+export async function GET() {
+  return NextResponse.json({ status: "online" })
 }
