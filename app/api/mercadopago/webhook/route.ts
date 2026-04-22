@@ -5,12 +5,10 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
 
 async function sendTelegram(message: string) {
-  console.log("📤 [Telegram] Tentando enviar mensagem...")
-  console.log("   Bot Token:", TELEGRAM_BOT_TOKEN ? `${TELEGRAM_BOT_TOKEN.substring(0, 10)}...` : "MISSING")
-  console.log("   Chat ID:", TELEGRAM_CHAT_ID || "MISSING")
+  console.log("📤 [Webhook-Telegram] Enviando mensagem...")
   
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-    console.error("❌ [Telegram] Configurações ausentes")
+    console.error("❌ [Webhook-Telegram] Configurações ausentes")
     return
   }
   
@@ -28,12 +26,12 @@ async function sendTelegram(message: string) {
     const result = await response.json()
     
     if (!response.ok) {
-      console.error("❌ [Telegram] Erro na API:", result)
+      console.error("❌ [Webhook-Telegram] Erro na API:", result)
     } else {
-      console.log("✅ [Telegram] Mensagem enviada com sucesso")
+      console.log("✅ [Webhook-Telegram] Mensagem enviada")
     }
   } catch (error) {
-    console.error("💥 [Telegram] Exceção:", error)
+    console.error("💥 [Webhook-Telegram] Exceção:", error)
   }
 }
 
@@ -55,7 +53,7 @@ async function createLalamoveOrder(
   recipientName: string,
   recipientPhone: string
 ) {
-  console.log("🛵 [Lalamove] Criando pedido:", { quotationId, recipientName, recipientPhone })
+  console.log("🛵 [Webhook-Lalamove] Criando pedido:", { quotationId, recipientName, recipientPhone })
   
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://saboreartes.com.br"
@@ -71,11 +69,11 @@ async function createLalamoveOrder(
     })
     
     const result = await response.json()
-    console.log("📦 [Lalamove] Resposta:", { status: response.status, ok: response.ok, result })
+    console.log("📦 [Webhook-Lalamove] Resposta:", { status: response.status, ok: response.ok, result })
     
     return result
   } catch (error) {
-    console.error("💥 [Lalamove] Exceção:", error)
+    console.error("💥 [Webhook-Lalamove] Exceção:", error)
     return null
   }
 }
@@ -83,23 +81,38 @@ async function createLalamoveOrder(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    console.log("📩 Webhook recebido:", body.action || body.type || Object.keys(body)[0])
+    console.log("📩 [Webhook] Payload recebido:", JSON.stringify(body, null, 2))
 
-    const { action, data, type } = body
-
-    if (action !== "payment.updated" && type !== "payment") {
-      return NextResponse.json({ received: true })
+    let paymentId = null
+    
+    if (body.action === "payment.updated" && body.data?.id) {
+      paymentId = body.data.id
+    } else if (body.type === "payment" && body.data?.id) {
+      paymentId = body.data.id
+    } else if (body.resource) {
+      const match = body.resource.match(/\/payments\/(\d+)/)
+      if (match) paymentId = match[1]
+    } else if (body.id) {
+      paymentId = body.id
     }
 
-    const paymentId = data?.id
     if (!paymentId) {
-      console.error("❌ paymentId não encontrado")
+      console.log("ℹ️ [Webhook] Nenhum paymentId encontrado")
       return NextResponse.json({ received: true })
     }
 
+    console.log("💰 [Webhook] Buscando pagamento:", paymentId)
     const payment = await getPaymentDetails(paymentId)
-    if (!payment || payment.status !== "approved") {
-      console.log(`ℹ️ Pagamento ${paymentId}: ${payment?.status}`)
+
+    if (!payment) {
+      console.error("❌ [Webhook] Pagamento não encontrado")
+      return NextResponse.json({ received: true })
+    }
+
+    console.log("📊 [Webhook] Status do pagamento:", payment.status)
+
+    if (payment.status !== "approved") {
+      console.log(`ℹ️ [Webhook] Pagamento ${paymentId}: ${payment.status}`)
       return NextResponse.json({ received: true })
     }
 
@@ -110,7 +123,10 @@ export async function POST(request: NextRequest) {
     const deliveryAddress = metadata?.delivery_address || "—"
     const quotationId = metadata?.quotation_id
 
-    console.log(`✅ Pedido pago! Cliente: ${customerName}, Total: R$ ${transaction_amount}`)
+    console.log("✅ [Webhook] Pedido pago!")
+    console.log("   Cliente:", customerName)
+    console.log("   Telefone original:", customerPhone)
+    console.log("   QuotationId:", quotationId)
 
     await sendTelegram(
       `🎉 *Novo pedido pago!*\n\n` +
@@ -122,10 +138,16 @@ export async function POST(request: NextRequest) {
     )
 
     if (quotationId) {
+      const formattedPhone = customerPhone.startsWith("+") 
+        ? customerPhone 
+        : `+55${customerPhone.replace(/\D/g, "")}`
+      
+      console.log("📱 [Webhook] Telefone formatado:", formattedPhone)
+      
       const lalamoveOrder = await createLalamoveOrder(
         quotationId,
         customerName,
-        customerPhone
+        formattedPhone
       )
 
       if (lalamoveOrder?.orderId) {
@@ -135,20 +157,20 @@ export async function POST(request: NextRequest) {
           `📍 [Rastrear entrega](${lalamoveOrder.shareLink})`
         )
       } else {
-        console.error("❌ Lalamove não retornou orderId")
+        console.error("❌ [Webhook] Lalamove não retornou orderId:", lalamoveOrder)
         await sendTelegram(
           `⚠️ *Atenção!* Pagamento aprovado mas erro ao criar entrega.\n` +
           `Crie manualmente no painel da Lalamove.`
         )
       }
     } else {
-      console.log("⚠️ Sem quotationId, pulando criação na Lalamove")
+      console.error("❌ [Webhook] Sem quotationId nos metadados")
     }
 
     return NextResponse.json({ received: true })
     
   } catch (error) {
-    console.error("💥 Erro no webhook:", error)
+    console.error("💥 [Webhook] Erro:", error)
     return NextResponse.json({ received: true })
   }
 }
