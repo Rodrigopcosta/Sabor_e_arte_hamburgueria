@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import crypto from "crypto"
 
-const LALAMOVE_BASE_URL =
-  process.env.LALAMOVE_API_URL || "https://rest.sandbox.lalamove.com"
+const LALAMOVE_BASE_URL = process.env.LALAMOVE_API_URL || "https://rest.sandbox.lalamove.com"
 const LALAMOVE_API_KEY = process.env.LALAMOVE_API_KEY || ""
 const LALAMOVE_API_SECRET = process.env.LALAMOVE_API_SECRET || ""
 const LALAMOVE_MARKET = process.env.LALAMOVE_MARKET || "BR"
@@ -14,19 +13,9 @@ const STORE_PHONE = "+5511979643448"
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
 
-// --- FUNÇÕES DE AUXÍLIO ---
-
-function generateSignature(
-  method: string,
-  path: string,
-  body: string,
-  timestamp: string
-) {
+function generateSignature(method: string, path: string, body: string, timestamp: string) {
   const rawSignature = `${timestamp}\r\n${method}\r\n${path}\r\n\r\n${body}`
-  return crypto
-    .createHmac("sha256", LALAMOVE_API_SECRET)
-    .update(rawSignature)
-    .digest("hex")
+  return crypto.createHmac("sha256", LALAMOVE_API_SECRET).update(rawSignature).digest("hex")
 }
 
 function getAuthHeaders(method: string, path: string, body: string) {
@@ -55,9 +44,18 @@ async function getCoordinates(address: string) {
 }
 
 async function sendTelegram(message: string) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return
+  console.log("📤 [Lalamove-Telegram] Enviando mensagem...")
+  
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    console.error("❌ [Lalamove-Telegram] Configurações ausentes:", {
+      botToken: !!TELEGRAM_BOT_TOKEN,
+      chatId: !!TELEGRAM_CHAT_ID
+    })
+    return
+  }
+  
   try {
-    await fetch(
+    const response = await fetch(
       `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
       {
         method: "POST",
@@ -69,18 +67,22 @@ async function sendTelegram(message: string) {
         }),
       }
     )
+    
+    const result = await response.json()
+    
+    if (!response.ok) {
+      console.error("❌ [Lalamove-Telegram] Erro na API:", result)
+    } else {
+      console.log("✅ [Lalamove-Telegram] Mensagem enviada")
+    }
   } catch (error) {
-    console.error("[Telegram] Erro:", error)
+    console.error("💥 [Lalamove-Telegram] Exceção:", error)
   }
 }
 
-// --- WEBHOOK (GET) ---
-
 export async function GET() {
-  return NextResponse.json({ ok: true }, { status: 200 })
+  return NextResponse.json({ ok: true })
 }
-
-// --- HANDLER PRINCIPAL (POST) ---
 
 export async function POST(request: NextRequest) {
   let body: any = null
@@ -88,11 +90,11 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json()
   } catch {
-    return NextResponse.json({ ok: true }, { status: 200 })
+    return NextResponse.json({ ok: true })
   }
 
   if (!body || (!body.action && !body.eventType)) {
-    return NextResponse.json({ ok: true }, { status: 200 })
+    return NextResponse.json({ ok: true })
   }
 
   try {
@@ -116,16 +118,11 @@ export async function POST(request: NextRequest) {
       return handleWebhook(body, request)
     }
 
-    return NextResponse.json({ ok: true }, { status: 200 })
+    return NextResponse.json({ ok: true })
   } catch {
-    return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
-
-// --- HANDLER DO WEBHOOK ---
 
 async function handleWebhook(body: any, request: NextRequest) {
   const token = request.headers.get("Authorization") || ""
@@ -135,21 +132,10 @@ async function handleWebhook(body: any, request: NextRequest) {
     const [apiKey, timestamp, receivedSignature] = parts
     const urlPath = "/api/lalamove"
     const rawBody = JSON.stringify(body)
-    const expectedSignature = generateSignature(
-      "POST",
-      urlPath,
-      rawBody,
-      timestamp
-    )
+    const expectedSignature = generateSignature("POST", urlPath, rawBody, timestamp)
 
-    if (
-      apiKey !== LALAMOVE_API_KEY ||
-      receivedSignature !== expectedSignature
-    ) {
-      return NextResponse.json(
-        { error: "Assinatura inválida" },
-        { status: 401 }
-      )
+    if (apiKey !== LALAMOVE_API_KEY || receivedSignature !== expectedSignature) {
+      return NextResponse.json({ error: "Assinatura inválida" }, { status: 401 })
     }
   }
 
@@ -165,13 +151,13 @@ async function handleWebhook(body: any, request: NextRequest) {
 
   if (eventType === "ORDER_STATUS_CHANGED") {
     const messages: Record<string, string> = {
-      ASSIGNING_DRIVER: `🔍 *Procurando motoboy...*\n\n🆔 Pedido: \`${orderId}\`\n\nAguarde, estamos localizando um entregador disponível.`,
-      ON_GOING: `🏍️ *Motoboy a caminho da retirada!*\n\n🆔 Pedido: \`${orderId}\`${driverInfo}\n\n📍 [Rastrear entrega](${shareLink})`,
-      PICKED_UP: `📦 *Pedido retirado!*\n\n🆔 Pedido: \`${orderId}\`${driverInfo}\n\nO entregador está indo até o cliente agora.\n\n📍 [Rastrear entrega](${shareLink})`,
-      COMPLETED: `✅ *Pedido entregue com sucesso!*\n\n🆔 Pedido: \`${orderId}\`\n\nEntrega concluída. 🎉`,
-      CANCELED: `❌ *Pedido cancelado*\n\n🆔 Pedido: \`${orderId}\`\n\nVerifique o painel da Lalamove para mais detalhes.`,
-      REJECTED: `❌ *Pedido rejeitado*\n\n🆔 Pedido: \`${orderId}\`\n\nNenhum motoboy aceitou. Tente novamente.`,
-      EXPIRED: `⏰ *Pedido expirado*\n\n🆔 Pedido: \`${orderId}\`\n\nNenhum motoboy disponível no momento.`,
+      ASSIGNING_DRIVER: `🔍 *Procurando motoboy...*\n\n🆔 Pedido: \`${orderId}\``,
+      ON_GOING: `🏍️ *Motoboy a caminho!*\n\n🆔 Pedido: \`${orderId}\`${driverInfo}\n\n📍 [Rastrear](${shareLink})`,
+      PICKED_UP: `📦 *Pedido retirado!*\n\n🆔 Pedido: \`${orderId}\`${driverInfo}\n\n📍 [Rastrear](${shareLink})`,
+      COMPLETED: `✅ *Pedido entregue!*\n\n🆔 Pedido: \`${orderId}\``,
+      CANCELED: `❌ *Pedido cancelado*\n\n🆔 Pedido: \`${orderId}\``,
+      REJECTED: `❌ *Pedido rejeitado*\n\n🆔 Pedido: \`${orderId}\``,
+      EXPIRED: `⏰ *Pedido expirado*\n\n🆔 Pedido: \`${orderId}\``,
     }
 
     const message = messages[status]
@@ -179,25 +165,18 @@ async function handleWebhook(body: any, request: NextRequest) {
   }
 
   if (eventType === "DRIVER_ASSIGNED") {
-    await sendTelegram(
-      `🏍️ *Motoboy confirmado!*\n\n🆔 Pedido: \`${orderId}\`${driverInfo}\n\n📍 [Rastrear entrega](${shareLink})`
-    )
+    await sendTelegram(`🏍️ *Motoboy confirmado!*\n\n🆔 Pedido: \`${orderId}\`${driverInfo}\n\n📍 [Rastrear](${shareLink})`)
   }
 
-  return NextResponse.json({ received: true }, { status: 200 })
+  return NextResponse.json({ received: true })
 }
-
-// --- COTAÇÃO ---
 
 async function handleQuote(data: { destinationAddress: string }) {
   const path = "/v3/quotations"
   const destCoords = await getCoordinates(data.destinationAddress)
 
   if (!destCoords) {
-    return NextResponse.json(
-      { error: "Não conseguimos localizar o endereço de entrega no mapa." },
-      { status: 422 }
-    )
+    return NextResponse.json({ error: "Endereço não encontrado" }, { status: 422 })
   }
 
   const payload = {
@@ -207,8 +186,7 @@ async function handleQuote(data: { destinationAddress: string }) {
       stops: [
         {
           coordinates: { lat: "-23.593539", lng: "-46.748802" },
-          address:
-            "Rua Jose Silvano Filho, 113 - Jardim Lucia, Sao Paulo - SP, 05750-250, BR",
+          address: "Rua Jose Silvano Filho, 113 - Jardim Lucia, Sao Paulo - SP, 05750-250, BR",
         },
         {
           coordinates: { lat: destCoords.lat, lng: destCoords.lng },
@@ -247,18 +225,20 @@ async function handleQuote(data: { destinationAddress: string }) {
   })
 }
 
-// --- CRIAR PEDIDO ---
-
 async function handleOrder(data: {
   quotationId: string
   recipientName: string
   recipientPhone: string
 }) {
+  const { quotationId, recipientName, recipientPhone } = data
+  
+  console.log("🛵 [Lalamove] Criando pedido:", { quotationId, recipientName, recipientPhone })
+  
   const path = "/v3/orders"
 
   const payload = {
     data: {
-      quotationId: data.quotationId,
+      quotationId: quotationId,
       sender: {
         stopId: "0",
         name: STORE_NAME,
@@ -267,9 +247,9 @@ async function handleOrder(data: {
       recipients: [
         {
           stopId: "1",
-          name: data.recipientName,
-          phone: data.recipientPhone,
-          remarks: `Pedido de lanche - ${STORE_NAME}`,
+          name: recipientName,
+          phone: recipientPhone,
+          remarks: `Pedido - ${STORE_NAME}`,
         },
       ],
     },
@@ -283,6 +263,8 @@ async function handleOrder(data: {
     body,
   })
   const result = await response.json()
+  
+  console.log("📦 [Lalamove] Resposta:", { status: response.status, ok: response.ok, result })
 
   if (!response.ok) {
     return NextResponse.json(
@@ -298,8 +280,6 @@ async function handleOrder(data: {
   })
 }
 
-// --- CONSULTAR STATUS ---
-
 async function handleStatus(data: { orderId: string }) {
   const path = `/v3/orders/${data.orderId}`
   const headers = getAuthHeaders("GET", path, "")
@@ -310,10 +290,7 @@ async function handleStatus(data: { orderId: string }) {
   const result = await response.json()
 
   if (!response.ok) {
-    return NextResponse.json(
-      { error: "Erro ao buscar status" },
-      { status: response.status }
-    )
+    return NextResponse.json({ error: "Erro ao buscar status" }, { status: response.status })
   }
 
   return NextResponse.json({
@@ -330,8 +307,6 @@ async function handleStatus(data: { orderId: string }) {
     shareLink: result.data?.shareLink,
   })
 }
-
-// --- SIMULAÇÃO ---
 
 function handleSimulated(action: string, data: Record<string, unknown>) {
   return NextResponse.json({
