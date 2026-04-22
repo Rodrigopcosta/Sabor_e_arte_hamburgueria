@@ -94,7 +94,7 @@ export const menuItems: MenuItem[] = [
     id: "guarana-lata",
     name: "Guaraná Antarctica Lata",
     description: "Lata de 350ml gelada.",
-    price: 6.9,
+    price: 1.0,
     image: "/images/guarana.png",
     category: "bebidas",
   },
