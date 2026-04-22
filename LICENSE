@@ -1,39 +1,46 @@
-=======================================================================
-PROPRIETARY SOFTWARE LICENSE - TODOS OS DIREITOS RESERVADOS
-=======================================================================
+Non-Commercial Open Source License (NC OSL) with Commercial Exception
+Version 1.0
 
-Projeto: Sabor & Artes - Cardápio Digital
-Website: https://saboreartes.com.br/
-Proprietário: Sabor & Artes
-Desenvolvedor Responsável: Rodrigo
+Copyright (c) 2026 Rodrigo Costa
 
-Copyright (c) 2026 Sabor & Artes. Todos os direitos reservados.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to 
+use, copy, modify, merge, publish, distribute, and/or sublicense copies of 
+the Software, subject to the following conditions:
 
-1. PROPRIEDADE E DIREITOS AUTORAIS
-Todo o código-fonte, design visual, logotipos, banco de dados e ativos 
-gráficos contidos neste projeto são de propriedade exclusiva da 
-Sabor & Artes. Este software é protegido pelas leis de direitos 
-autorais e tratados internacionais.
+1. Non-Commercial Use Only: 
+   The Software and derivative works may not be used for commercial purposes. 
+   Commercial purposes include, but are not limited to:
+   - Selling the Software or derivative works
+   - Using the Software in paid services or products
+   - Monetizing the Software through advertising, subscriptions, or fees
+   - Incorporating the Software into revenue-generating business operations
 
-2. RESTRIÇÕES DE USO
-É estritamente proibido a qualquer pessoa física ou jurídica:
-   a) Copiar, reproduzir ou redistribuir este código-fonte, total ou 
-      parcialmente, em qualquer meio ou formato.
-   b) Modificar, criar obras derivadas ou realizar engenharia reversa 
-      com o intuito de clonar ou competir com o modelo de negócio.
-   c) Utilizar este software para qualquer outra finalidade comercial 
-      que não seja a operação oficial da hamburgueria Sabor & Artes.
+2. COMMERCIAL EXCEPTION:
+   Notwithstanding the above, the following person and business are explicitly 
+   granted permission to use this Software for commercial purposes:
+   
+   - Felipe Costa, proprietário da "Sabor & Artes"
+   
+   This exception applies solely to the operation of the named business
+   and does not extend to any other person or entity.
 
-3. ACESSO DE TERCEIROS (DESENVOLVEDORES)
-A permissão de acesso ao código é concedida temporariamente apenas a 
-desenvolvedores autorizados pela Sabor & Artes para fins estritos de 
-manutenção, atualização e melhoria do sistema original. O acesso ao 
-código não transfere, em hipótese alguma, qualquer direito de 
-propriedade intelectual.
+3. Attribution Requirement:
+   All copies and substantial portions must include:
+   - This license document
+   - The original copyright notice
+   - A clear link to the original project repository
 
-4. PENALIDADES
-O uso não autorizado, a cópia ilegal ou a distribuição deste software 
-resultará em violação de direitos autorais e sujeitará o infrator a 
-processos civis e criminais conforme a legislação vigente.
+4. Share-Alike:
+   Modifications must be distributed under this same NC OSL license.
 
-=======================================================================
+5. No Warranty:
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+   IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, 
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
+   THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN 
+   THE SOFTWARE.
+
+For other commercial licensing inquiries, contact: rodrigo.rp822@gmail.com
