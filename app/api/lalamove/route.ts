@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import crypto from "crypto"
 
-const LALAMOVE_BASE_URL = process.env.LALAMOVE_API_URL || "https://rest.sandbox.lalamove.com"
+const LALAMOVE_BASE_URL = process.env.LALAMOVE_API_URL || "https://rest.lalamove.com"
 const LALAMOVE_API_KEY = process.env.LALAMOVE_API_KEY || ""
 const LALAMOVE_API_SECRET = process.env.LALAMOVE_API_SECRET || ""
 const LALAMOVE_MARKET = process.env.LALAMOVE_MARKET || "BR"
@@ -35,25 +35,23 @@ async function getCoordinates(address: string) {
     const data = await response.json()
     if (data.status === "OK") {
       const { lat, lng } = data.results[0].geometry.location
+      console.log(`📍 [Geocoding] Endereço: "${address}" → lat: ${lat}, lng: ${lng}`)
       return { lat: lat.toString(), lng: lng.toString() }
     }
+    console.error(`❌ [Geocoding] Status inválido: ${data.status} para endereço: "${address}"`)
     return null
-  } catch {
+  } catch (err) {
+    console.error("💥 [Geocoding] Exceção:", err)
     return null
   }
 }
 
 async function sendTelegram(message: string) {
-  console.log("📤 [Lalamove-Telegram] Enviando mensagem...")
-  
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-    console.error("❌ [Lalamove-Telegram] Configurações ausentes:", {
-      botToken: !!TELEGRAM_BOT_TOKEN,
-      chatId: !!TELEGRAM_CHAT_ID
-    })
+    console.error("❌ [Telegram] Variáveis ausentes — TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não configurados")
     return
   }
-  
+
   try {
     const response = await fetch(
       `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
@@ -67,16 +65,14 @@ async function sendTelegram(message: string) {
         }),
       }
     )
-    
     const result = await response.json()
-    
     if (!response.ok) {
-      console.error("❌ [Lalamove-Telegram] Erro na API:", result)
+      console.error("❌ [Telegram] Erro na API:", JSON.stringify(result))
     } else {
-      console.log("✅ [Lalamove-Telegram] Mensagem enviada")
+      console.log("✅ [Telegram] Mensagem enviada com sucesso")
     }
   } catch (error) {
-    console.error("💥 [Lalamove-Telegram] Exceção:", error)
+    console.error("💥 [Telegram] Exceção ao enviar:", error)
   }
 }
 
@@ -100,6 +96,7 @@ export async function POST(request: NextRequest) {
   try {
     if (body.action) {
       if (!LALAMOVE_API_KEY || !LALAMOVE_API_SECRET) {
+        console.warn("⚠️ [Lalamove] API Key ou Secret ausentes — usando modo simulado")
         return handleSimulated(body.action, body)
       }
       switch (body.action) {
@@ -119,7 +116,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ ok: true })
-  } catch {
+  } catch (err) {
+    console.error("💥 [Lalamove] Erro interno não tratado:", err)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
@@ -135,6 +133,7 @@ async function handleWebhook(body: any, request: NextRequest) {
     const expectedSignature = generateSignature("POST", urlPath, rawBody, timestamp)
 
     if (apiKey !== LALAMOVE_API_KEY || receivedSignature !== expectedSignature) {
+      console.error("❌ [Webhook] Assinatura inválida — possível requisição não autorizada")
       return NextResponse.json({ error: "Assinatura inválida" }, { status: 401 })
     }
   }
@@ -144,6 +143,8 @@ async function handleWebhook(body: any, request: NextRequest) {
   const status = data?.order?.status || "—"
   const driver = data?.order?.driver || data?.driver || null
   const shareLink = data?.order?.shareLink || "—"
+
+  console.log(`📡 [Webhook] Evento recebido: ${eventType} | orderId: ${orderId} | status: ${status}`)
 
   const driverInfo = driver
     ? `\n🏍️ *Motorista:* ${driver.name}\n📱 *Telefone:* ${driver.phone}\n🚗 *Placa:* ${driver.plateNumber || "—"}`
@@ -161,7 +162,11 @@ async function handleWebhook(body: any, request: NextRequest) {
     }
 
     const message = messages[status]
-    if (message) await sendTelegram(message)
+    if (message) {
+      await sendTelegram(message)
+    } else {
+      console.warn(`⚠️ [Webhook] Status não mapeado: "${status}" — nenhuma mensagem enviada`)
+    }
   }
 
   if (eventType === "DRIVER_ASSIGNED") {
@@ -172,10 +177,13 @@ async function handleWebhook(body: any, request: NextRequest) {
 }
 
 async function handleQuote(data: { destinationAddress: string }) {
+  console.log(`\n📋 [Quote] Iniciando cotação para: "${data.destinationAddress}"`)
+
   const path = "/v3/quotations"
   const destCoords = await getCoordinates(data.destinationAddress)
 
   if (!destCoords) {
+    console.error(`❌ [Quote] Não foi possível obter coordenadas para: "${data.destinationAddress}"`)
     return NextResponse.json({ error: "Endereço não encontrado" }, { status: 422 })
   }
 
@@ -202,6 +210,8 @@ async function handleQuote(data: { destinationAddress: string }) {
     },
   }
 
+  console.log("📤 [Quote] Payload enviado:", JSON.stringify(payload, null, 2))
+
   const body = JSON.stringify(payload)
   const headers = getAuthHeaders("POST", path, body)
   const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, {
@@ -211,81 +221,128 @@ async function handleQuote(data: { destinationAddress: string }) {
   })
   const result = await response.json()
 
+  console.log(`📥 [Quote] Status HTTP: ${response.status}`)
+  console.log("📥 [Quote] Resposta completa:", JSON.stringify(result, null, 2))
+
   if (!response.ok) {
+    console.error(`❌ [Quote] Falha na cotação — HTTP ${response.status}:`, JSON.stringify(result))
     return NextResponse.json(
       { error: "Erro ao calcular frete", details: result },
       { status: response.status }
     )
   }
 
+  // Extraindo os stopIds reais retornados pela Lalamove
+  const stops = result.data?.stops || []
+  const senderStopId = stops[0]?.stopId
+  const recipientStopId = stops[1]?.stopId
+  const quotationId = result.data?.quotationId
+  const expiresAt = result.data?.expiresAt
+
+  console.log(`✅ [Quote] Cotação criada com sucesso!`)
+  console.log(`   quotationId : ${quotationId}`)
+  console.log(`   senderStopId: ${senderStopId}`)
+  console.log(`   recipientStopId: ${recipientStopId}`)
+  console.log(`   expiresAt   : ${expiresAt}`)
+  console.log(`   total       : ${result.data?.priceBreakdown?.total}`)
+
+  if (!senderStopId || !recipientStopId) {
+    console.error("❌ [Quote] stopIds não encontrados na resposta! Verifique a estrutura do retorno acima.")
+  }
+
   return NextResponse.json({
-    quotationId: result.data?.quotationId,
+    quotationId,
+    senderStopId,
+    recipientStopId,
     totalFee: parseFloat(result.data?.priceBreakdown?.total || "0"),
     estimatedTime: "30-45 min",
+    expiresAt,
   })
 }
 
 async function handleOrder(data: {
   quotationId: string
+  senderStopId: string
+  recipientStopId: string
   recipientName: string
   recipientPhone: string
 }) {
-  const { quotationId, recipientName, recipientPhone } = data
-  
-  console.log("🛵 [Lalamove] Dados recebidos:", { quotationId, recipientName, recipientPhone })
-  
+  const { quotationId, senderStopId, recipientStopId, recipientName, recipientPhone } = data
+
+  console.log(`\n🛵 [Order] Iniciando criação de pedido`)
+  console.log(`   quotationId     : ${quotationId}`)
+  console.log(`   senderStopId    : ${senderStopId}`)
+  console.log(`   recipientStopId : ${recipientStopId}`)
+  console.log(`   recipientName   : ${recipientName}`)
+  console.log(`   recipientPhone  : ${recipientPhone}`)
+
+  if (!quotationId) {
+    console.error("❌ [Order] quotationId ausente — abortando")
+    return NextResponse.json({ error: "quotationId é obrigatório" }, { status: 400 })
+  }
+
+  if (!senderStopId || !recipientStopId) {
+    console.error("❌ [Order] stopIds ausentes — certifique-se de passar senderStopId e recipientStopId vindos do /quote")
+    return NextResponse.json({ error: "senderStopId e recipientStopId são obrigatórios" }, { status: 400 })
+  }
+
+  // Garante formato E.164 (+55XXXXXXXXXXX)
+  const normalizedPhone = recipientPhone.startsWith("+")
+    ? recipientPhone
+    : `+55${recipientPhone.replace(/\D/g, "")}`
+
+  if (normalizedPhone !== recipientPhone) {
+    console.log(`📱 [Order] Telefone normalizado: "${recipientPhone}" → "${normalizedPhone}"`)
+  }
+
   const path = "/v3/orders"
 
   const payload = {
     data: {
-      quotationId: quotationId,
+      quotationId,
       sender: {
-        stopId: 0,
+        stopId: senderStopId,
         name: STORE_NAME,
         phone: STORE_PHONE,
       },
       recipients: [
         {
-          stopId: 1,
+          stopId: recipientStopId,
           name: recipientName,
-          phone: recipientPhone,
+          phone: normalizedPhone,
         },
       ],
     },
   }
 
-  // Log DETALHADO do payload
-  console.log("📦 [Lalamove] PAYLOAD ENVIADO:")
-  console.log(JSON.stringify(payload, null, 2))
-  
-  // Log do quotationId especificamente
-  console.log("🔑 QuotationId:", quotationId, "Tipo:", typeof quotationId, "Tamanho:", quotationId?.length)
+  console.log("📤 [Order] Payload enviado:", JSON.stringify(payload, null, 2))
 
   const body = JSON.stringify(payload)
   const headers = getAuthHeaders("POST", path, body)
-  
-  console.log("📡 Headers:", {
-    Authorization: headers.Authorization.substring(0, 50) + "...",
-    Market: headers.Market,
-    "Content-Type": headers["Content-Type"]
-  })
-  
+
   const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, {
     method: "POST",
     headers,
     body,
   })
-  
+
   const result = await response.json()
 
-  console.log("📥 Resposta completa:", JSON.stringify(result, null, 2))
+  console.log(`📥 [Order] Status HTTP: ${response.status}`)
+  console.log("📥 [Order] Resposta completa:", JSON.stringify(result, null, 2))
 
   if (!response.ok) {
+    console.error(`❌ [Order] Falha ao criar pedido — HTTP ${response.status}`)
     return NextResponse.json(
       { error: "Erro ao criar pedido", details: result },
       { status: response.status }
     )
   }
+
+  console.log(`✅ [Order] Pedido criado com sucesso!`)
+  console.log(`   orderId   : ${result.data?.orderId}`)
+  console.log(`   status    : ${result.data?.status}`)
+  console.log(`   shareLink : ${result.data?.shareLink}`)
 
   return NextResponse.json({
     orderId: result.data?.orderId,
@@ -295,6 +352,8 @@ async function handleOrder(data: {
 }
 
 async function handleStatus(data: { orderId: string }) {
+  console.log(`\n🔎 [Status] Consultando pedido: ${data.orderId}`)
+
   const path = `/v3/orders/${data.orderId}`
   const headers = getAuthHeaders("GET", path, "")
   const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, {
@@ -303,7 +362,10 @@ async function handleStatus(data: { orderId: string }) {
   })
   const result = await response.json()
 
+  console.log(`📥 [Status] HTTP: ${response.status} | status pedido: ${result.data?.status}`)
+
   if (!response.ok) {
+    console.error(`❌ [Status] Erro ao buscar status — HTTP ${response.status}:`, JSON.stringify(result))
     return NextResponse.json({ error: "Erro ao buscar status" }, { status: response.status })
   }
 
@@ -323,8 +385,11 @@ async function handleStatus(data: { orderId: string }) {
 }
 
 function handleSimulated(action: string, data: Record<string, unknown>) {
+  console.log(`🧪 [Simulado] Ação: ${action}`)
   return NextResponse.json({
     quotationId: `QT-SIM-${Date.now()}`,
+    senderStopId: "STOP-SIM-0",
+    recipientStopId: "STOP-SIM-1",
     totalFee: 12.5,
     estimatedTime: "30-45 min",
     simulated: true,
