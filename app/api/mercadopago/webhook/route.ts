@@ -5,10 +5,17 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
 
 async function sendTelegram(message: string) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return
+  console.log("📤 [Telegram] Tentando enviar mensagem...")
+  console.log("   Bot Token:", TELEGRAM_BOT_TOKEN ? `${TELEGRAM_BOT_TOKEN.substring(0, 10)}...` : "MISSING")
+  console.log("   Chat ID:", TELEGRAM_CHAT_ID || "MISSING")
+  
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    console.error("❌ [Telegram] Configurações ausentes")
+    return
+  }
   
   try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -17,8 +24,16 @@ async function sendTelegram(message: string) {
         parse_mode: "Markdown",
       }),
     })
+    
+    const result = await response.json()
+    
+    if (!response.ok) {
+      console.error("❌ [Telegram] Erro na API:", result)
+    } else {
+      console.log("✅ [Telegram] Mensagem enviada com sucesso")
+    }
   } catch (error) {
-    console.error("[Telegram] Erro:", error)
+    console.error("💥 [Telegram] Exceção:", error)
   }
 }
 
@@ -26,9 +41,7 @@ async function getPaymentDetails(paymentId: string) {
   try {
     const response = await fetch(
       `https://api.mercadopago.com/v1/payments/${paymentId}`,
-      {
-        headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
-      }
+      { headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` } }
     )
     return await response.json()
   } catch (error) {
@@ -42,8 +55,10 @@ async function createLalamoveOrder(
   recipientName: string,
   recipientPhone: string
 ) {
+  console.log("🛵 [Lalamove] Criando pedido:", { quotationId, recipientName, recipientPhone })
+  
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://saboreartes.com.br"
     const response = await fetch(`${baseUrl}/api/lalamove`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -54,9 +69,13 @@ async function createLalamoveOrder(
         recipientPhone,
       }),
     })
-    return await response.json()
+    
+    const result = await response.json()
+    console.log("📦 [Lalamove] Resposta:", { status: response.status, ok: response.ok, result })
+    
+    return result
   } catch (error) {
-    console.error("[Lalamove] Erro:", error)
+    console.error("💥 [Lalamove] Exceção:", error)
     return null
   }
 }
@@ -64,24 +83,23 @@ async function createLalamoveOrder(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    console.log("📩 Webhook recebido:", body.action || body.type)
+    console.log("📩 Webhook recebido:", body.action || body.type || Object.keys(body)[0])
 
     const { action, data, type } = body
 
-    // MP envia action="payment.updated" ou type="payment"
     if (action !== "payment.updated" && type !== "payment") {
       return NextResponse.json({ received: true })
     }
 
     const paymentId = data?.id
     if (!paymentId) {
-      console.error("❌ paymentId não encontrado no payload")
+      console.error("❌ paymentId não encontrado")
       return NextResponse.json({ received: true })
     }
 
     const payment = await getPaymentDetails(paymentId)
     if (!payment || payment.status !== "approved") {
-      console.log(`ℹ️ Pagamento ${paymentId} não está aprovado (${payment?.status})`)
+      console.log(`ℹ️ Pagamento ${paymentId}: ${payment?.status}`)
       return NextResponse.json({ received: true })
     }
 
@@ -92,7 +110,7 @@ export async function POST(request: NextRequest) {
     const deliveryAddress = metadata?.delivery_address || "—"
     const quotationId = metadata?.quotation_id
 
-    console.log(`✅ Pedido pago! Cliente: ${customerName}`)
+    console.log(`✅ Pedido pago! Cliente: ${customerName}, Total: R$ ${transaction_amount}`)
 
     await sendTelegram(
       `🎉 *Novo pedido pago!*\n\n` +
@@ -117,14 +135,16 @@ export async function POST(request: NextRequest) {
           `📍 [Rastrear entrega](${lalamoveOrder.shareLink})`
         )
       } else {
+        console.error("❌ Lalamove não retornou orderId")
         await sendTelegram(
           `⚠️ *Atenção!* Pagamento aprovado mas erro ao criar entrega.\n` +
           `Crie manualmente no painel da Lalamove.`
         )
       }
+    } else {
+      console.log("⚠️ Sem quotationId, pulando criação na Lalamove")
     }
 
-    // Sempre retorna 200 para o MP não reenviar
     return NextResponse.json({ received: true })
     
   } catch (error) {
