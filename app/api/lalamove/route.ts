@@ -240,13 +240,13 @@ async function handleOrder(data: {
     data: {
       quotationId: quotationId,
       sender: {
-        stopId: "0",
+        stopId: 0,
         name: STORE_NAME,
         phone: STORE_PHONE,
       },
       recipients: [
         {
-          stopId: "1",
+          stopId: 1,
           name: recipientName,
           phone: recipientPhone,
           remarks: `Pedido - ${STORE_NAME}`,
