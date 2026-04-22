@@ -232,7 +232,7 @@ async function handleOrder(data: {
 }) {
   const { quotationId, recipientName, recipientPhone } = data
   
-  console.log("🛵 [Lalamove] Criando pedido:", { quotationId, recipientName, recipientPhone })
+  console.log("🛵 [Lalamove] Dados recebidos:", { quotationId, recipientName, recipientPhone })
   
   const path = "/v3/orders"
 
@@ -240,26 +240,35 @@ async function handleOrder(data: {
     data: {
       quotationId: quotationId,
       sender: {
-        stopId: 0,
+        stopId: "0",
         name: STORE_NAME,
         phone: STORE_PHONE,
       },
       recipients: [
         {
-          stopId: 1,
+          stopId: "1",
           name: recipientName,
           phone: recipientPhone,
-          remarks: `Pedido - ${STORE_NAME}`,
         },
       ],
-      isTest: true
     },
   }
 
-  console.log("📦 [Lalamove] Payload completo:", JSON.stringify(payload, null, 2))
+  // Log DETALHADO do payload
+  console.log("📦 [Lalamove] PAYLOAD ENVIADO:")
+  console.log(JSON.stringify(payload, null, 2))
+  
+  // Log do quotationId especificamente
+  console.log("🔑 QuotationId:", quotationId, "Tipo:", typeof quotationId, "Tamanho:", quotationId?.length)
 
   const body = JSON.stringify(payload)
   const headers = getAuthHeaders("POST", path, body)
+  
+  console.log("📡 Headers:", {
+    Authorization: headers.Authorization.substring(0, 50) + "...",
+    Market: headers.Market,
+    "Content-Type": headers["Content-Type"]
+  })
   
   const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, {
     method: "POST",
@@ -268,23 +277,8 @@ async function handleOrder(data: {
   })
   
   const result = await response.json()
-  
-  // Log detalhado do erro
-  if (!response.ok) {
-    console.error("❌ [Lalamove] ERRO DETALHADO:", {
-      status: response.status,
-      errors: result.errors,
-      message: result.message,
-      result: result
-    })
-  }
 
-  console.log("📥 [Lalamove] Resposta:", {
-    status: response.status,
-    ok: response.ok,
-    orderId: result.data?.orderId,
-    error: result.errors || result.message
-  })
+  console.log("📥 Resposta completa:", JSON.stringify(result, null, 2))
 
   if (!response.ok) {
     return NextResponse.json(
