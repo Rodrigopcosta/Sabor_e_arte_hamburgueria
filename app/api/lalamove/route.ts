@@ -255,16 +255,26 @@ async function handleOrder(data: {
     },
   }
 
+  console.log("📦 [Lalamove] Payload completo:", JSON.stringify(payload, null, 2))
+
   const body = JSON.stringify(payload)
   const headers = getAuthHeaders("POST", path, body)
+  
+  console.log("📡 [Lalamove] URL:", `${LALAMOVE_BASE_URL}${path}`)
+  
   const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, {
     method: "POST",
     headers,
     body,
   })
+  
   const result = await response.json()
   
-  console.log("📦 [Lalamove] Resposta:", { status: response.status, ok: response.ok, result })
+  console.log("📥 [Lalamove] Resposta completa:", {
+    status: response.status,
+    ok: response.ok,
+    result: JSON.stringify(result, null, 2)
+  })
 
   if (!response.ok) {
     return NextResponse.json(
@@ -279,7 +289,6 @@ async function handleOrder(data: {
     shareLink: result.data?.shareLink,
   })
 }
-
 async function handleStatus(data: { orderId: string }) {
   const path = `/v3/orders/${data.orderId}`
   const headers = getAuthHeaders("GET", path, "")
