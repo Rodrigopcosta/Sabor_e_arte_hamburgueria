@@ -252,6 +252,7 @@ async function handleOrder(data: {
           remarks: `Pedido - ${STORE_NAME}`,
         },
       ],
+      isTest: true
     },
   }
 
