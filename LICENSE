@@ -1,4 +1,4 @@
-Non-Commercial Open Source License (NC OSL) with Commercial Exception
+Non-Commercial Open Source License (NC OSL)
 Version 1.0
 
 Copyright (c) 2026 Rodrigo Costa
@@ -16,25 +16,16 @@ the Software, subject to the following conditions:
    - Monetizing the Software through advertising, subscriptions, or fees
    - Incorporating the Software into revenue-generating business operations
 
-2. COMMERCIAL EXCEPTION:
-   Notwithstanding the above, the following person and business are explicitly 
-   granted permission to use this Software for commercial purposes:
-   
-   - Felipe Costa, proprietário da "Sabor & Artes"
-   
-   This exception applies solely to the operation of the named business
-   and does not extend to any other person or entity.
-
-3. Attribution Requirement:
+2. Attribution Requirement:
    All copies and substantial portions must include:
    - This license document
    - The original copyright notice
    - A clear link to the original project repository
 
-4. Share-Alike:
+3. Share-Alike:
    Modifications must be distributed under this same NC OSL license.
 
-5. No Warranty:
+4. No Warranty:
    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
    IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, 
    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
@@ -43,4 +34,4 @@ the Software, subject to the following conditions:
    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN 
    THE SOFTWARE.
 
-For other commercial licensing inquiries, contact: rodrigo.rp822@gmail.com
+For commercial licensing inquiries, contact: rodrigo.rp822@gmail.com
