@@ -43,6 +43,52 @@ async function getPaymentDetails(paymentId: string) {
   }
 }
 
+/**
+ * Recota na Lalamove usando o endereço de entrega.
+ * Chamada quando o quotationId original expirou (ERR_INVALID_SCHEDULE_TIME).
+ */
+async function requote(deliveryAddress: string): Promise<{
+  quotationId: string
+  senderStopId: string
+  recipientStopId: string
+} | null> {
+  console.log(`🔄 [Webhook-Requote] Recotando para: "${deliveryAddress}"`)
+
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://saboreartes.com.br"
+    const response = await fetch(`${baseUrl}/api/lalamove`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "quote",
+        destinationAddress: deliveryAddress,
+      }),
+    })
+
+    const result = await response.json()
+    console.log(`📥 [Webhook-Requote] HTTP ${response.status}:`, JSON.stringify(result))
+
+    if (!response.ok || !result.quotationId) {
+      console.error("❌ [Webhook-Requote] Falha na recotação:", JSON.stringify(result))
+      return null
+    }
+
+    console.log(`✅ [Webhook-Requote] Nova cotação obtida!`)
+    console.log(`   quotationId     : ${result.quotationId}`)
+    console.log(`   senderStopId    : ${result.senderStopId}`)
+    console.log(`   recipientStopId : ${result.recipientStopId}`)
+
+    return {
+      quotationId: result.quotationId,
+      senderStopId: result.senderStopId,
+      recipientStopId: result.recipientStopId,
+    }
+  } catch (error) {
+    console.error("💥 [Webhook-Requote] Exceção:", error)
+    return null
+  }
+}
+
 async function createLalamoveOrder(
   quotationId: string,
   senderStopId: string,
@@ -74,11 +120,16 @@ async function createLalamoveOrder(
 
     const result = await response.json()
     console.log(`📥 [Webhook-Lalamove] HTTP ${response.status}:`, JSON.stringify(result))
-    return result
+    return { result, status: response.status }
   } catch (error) {
     console.error("💥 [Webhook-Lalamove] Exceção:", error)
     return null
   }
+}
+
+function isExpiredQuotationError(result: any): boolean {
+  const errors: { id: string }[] = result?.details?.errors || result?.errors || []
+  return errors.some((e) => e.id === "ERR_INVALID_SCHEDULE_TIME")
 }
 
 export async function POST(request: NextRequest) {
@@ -123,13 +174,14 @@ export async function POST(request: NextRequest) {
     const customerName     = metadata?.customer_name     || "Cliente"
     const customerPhone    = metadata?.customer_phone    || "—"
     const deliveryAddress  = metadata?.delivery_address  || "—"
-    const quotationId      = metadata?.quotation_id
-    const senderStopId     = metadata?.sender_stop_id
-    const recipientStopId  = metadata?.recipient_stop_id
+    let   quotationId      = metadata?.quotation_id
+    let   senderStopId     = metadata?.sender_stop_id
+    let   recipientStopId  = metadata?.recipient_stop_id
 
     console.log("✅ [Webhook] Pedido aprovado!")
     console.log(`   customerName    : ${customerName}`)
     console.log(`   customerPhone   : ${customerPhone}`)
+    console.log(`   deliveryAddress : ${deliveryAddress}`)
     console.log(`   quotationId     : ${quotationId}`)
     console.log(`   senderStopId    : ${senderStopId}`)
     console.log(`   recipientStopId : ${recipientStopId}`)
@@ -150,7 +202,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!senderStopId || !recipientStopId) {
-      console.error("❌ [Webhook] stopIds ausentes no metadata — verifique se o checkout está enviando senderStopId e recipientStopId ao criar a preferência MP")
+      console.error("❌ [Webhook] stopIds ausentes no metadata")
       await sendTelegram(`⚠️ *Atenção!* Pagamento aprovado mas stopIds ausentes.\nCrie manualmente no painel da Lalamove.`)
       return NextResponse.json({ received: true })
     }
@@ -163,13 +215,50 @@ export async function POST(request: NextRequest) {
       console.log(`📱 [Webhook] Telefone normalizado: "${customerPhone}" → "${normalizedPhone}"`)
     }
 
-    const lalamoveOrder = await createLalamoveOrder(
+    // Primeira tentativa com a cotação original
+    let lalamoveResponse = await createLalamoveOrder(
       quotationId,
       senderStopId,
       recipientStopId,
       customerName,
       normalizedPhone
     )
+
+    // Se a cotação expirou, recota e tenta novamente
+    if (
+      lalamoveResponse &&
+      lalamoveResponse.status === 422 &&
+      isExpiredQuotationError(lalamoveResponse.result)
+    ) {
+      console.warn("⏰ [Webhook] Cotação expirada — iniciando recotação automática")
+      await sendTelegram(`⏰ *Cotação expirada.* Recotando automaticamente para:\n📍 ${deliveryAddress}`)
+
+      const newQuote = await requote(deliveryAddress)
+
+      if (!newQuote) {
+        console.error("❌ [Webhook] Recotação falhou")
+        await sendTelegram(
+          `⚠️ *Atenção!* Pagamento aprovado mas a recotação falhou.\n` +
+          `Crie manualmente no painel da Lalamove.\n📍 ${deliveryAddress}`
+        )
+        return NextResponse.json({ received: true })
+      }
+
+      quotationId     = newQuote.quotationId
+      senderStopId    = newQuote.senderStopId
+      recipientStopId = newQuote.recipientStopId
+
+      console.log("🔄 [Webhook] Tentando criar pedido com nova cotação...")
+      lalamoveResponse = await createLalamoveOrder(
+        quotationId,
+        senderStopId,
+        recipientStopId,
+        customerName,
+        normalizedPhone
+      )
+    }
+
+    const lalamoveOrder = lalamoveResponse?.result
 
     if (lalamoveOrder?.orderId) {
       console.log(`✅ [Webhook] Entrega criada! orderId: ${lalamoveOrder.orderId}`)
