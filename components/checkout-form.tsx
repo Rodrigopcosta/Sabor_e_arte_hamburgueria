@@ -16,7 +16,7 @@ interface CheckoutFormProps {
       address: string
     }>
   >
-  onAddressComplete: (fee: number, quotationId: string) => void
+  onAddressComplete: (fee: number, quotationId: string, senderStopId: string, recipientStopId: string) => void
   setIsCalculating: Dispatch<SetStateAction<boolean>>
 }
 
@@ -61,7 +61,6 @@ export function CheckoutForm({
     setAddressFields((prev) => ({ ...prev, [name]: value }))
   }
 
-  // Monta endereço completo sempre que campos de endereço mudam
   useEffect(() => {
     const { street, number, complement, neighborhood, city, state, cep } = addressFields
     if (!street) return
@@ -80,7 +79,6 @@ export function CheckoutForm({
     setFormData((prev) => ({ ...prev, address: fullAddress }))
   }, [addressFields])
 
-  // Busca CEP via ViaCEP
   const fetchCep = async (rawCep: string) => {
     const cep = rawCep.replace(/\D/g, "")
     if (cep.length !== 8) return
@@ -105,7 +103,6 @@ export function CheckoutForm({
         state: data.uf || prev.state,
       }))
 
-      // Foca no campo número após preencher o CEP
       setTimeout(() => {
         document.getElementById("number")?.focus()
       }, 100)
@@ -118,7 +115,6 @@ export function CheckoutForm({
 
   const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value.replace(/\D/g, "").slice(0, 8)
-    // Formata como 00000-000
     if (value.length > 5) value = value.slice(0, 5) + "-" + value.slice(5)
     setAddressFields((prev) => ({ ...prev, cep: value }))
 
@@ -126,7 +122,6 @@ export function CheckoutForm({
     if (raw.length === 8) fetchCep(raw)
   }
 
-  // Calcula frete com debounce quando endereço completo estiver pronto
   useEffect(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current)
 
@@ -161,11 +156,16 @@ export function CheckoutForm({
 
       const data = await response.json()
 
+      console.log("📦 [CheckoutForm] Resposta do quote:", data)
+
       if (response.ok && typeof data.totalFee === "number" && data.quotationId) {
-        onAddressComplete(data.totalFee, data.quotationId)
+        if (!data.senderStopId || !data.recipientStopId) {
+          console.error("❌ [CheckoutForm] stopIds ausentes na resposta do quote:", data)
+        }
+        onAddressComplete(data.totalFee, data.quotationId, data.senderStopId ?? "", data.recipientStopId ?? "")
       }
     } catch (error) {
-      console.error("Erro ao calcular frete:", error)
+      console.error("❌ [CheckoutForm] Erro ao calcular frete:", error)
     } finally {
       setInternalLoading(false)
       setIsCalculating(false)
@@ -252,7 +252,6 @@ export function CheckoutForm({
               </p>
             </div>
 
-            {/* Rua (preenchida automaticamente) */}
             {cepFilled && (
               <>
                 <input
@@ -265,7 +264,6 @@ export function CheckoutForm({
                   className="border-border bg-input text-foreground focus:ring-primary/20 h-11 w-full cursor-text rounded-lg border px-4 text-sm focus:ring-2 focus:outline-none"
                 />
 
-                {/* Número e Complemento */}
                 <div className="flex gap-3">
                   <div className="w-1/3">
                     <input
@@ -293,7 +291,6 @@ export function CheckoutForm({
                   </div>
                 </div>
 
-                {/* Bairro */}
                 <input
                   id="neighborhood"
                   name="neighborhood"
@@ -304,7 +301,6 @@ export function CheckoutForm({
                   className="border-border bg-input text-foreground focus:ring-primary/20 h-11 w-full cursor-text rounded-lg border px-4 text-sm focus:ring-2 focus:outline-none"
                 />
 
-                {/* Cidade e Estado (somente leitura) */}
                 <div className="flex gap-3">
                   <input
                     type="text"
@@ -320,7 +316,6 @@ export function CheckoutForm({
                   />
                 </div>
 
-                {/* Endereço completo montado */}
                 {internalLoading && (
                   <div className="flex items-center gap-2 text-xs text-amber-500">
                     <Loader2 className="h-3 w-3 animate-spin" />

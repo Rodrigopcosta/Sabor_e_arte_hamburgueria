@@ -23,23 +23,19 @@ export default function CarrinhoPage() {
     clearCart,
   } = useCart()
 
-  // Etapas: cart → details → payment → confirmation
-  const [step, setStep] = useState<
-    "cart" | "details" | "payment" | "confirmation"
-  >("cart")
+  const [step, setStep] = useState<"cart" | "details" | "payment" | "confirmation">("cart")
 
   const [storeOpen, setStoreOpen] = useState(true)
   const [statusMsg, setStatusMsg] = useState("")
 
-  // Frete
   const [deliveryFee, setDeliveryFee] = useState<number | null>(null)
   const [isCalculating, setIsCalculating] = useState(false)
   const [quotationId, setQuotationId] = useState<string | null>(null)
+  const [senderStopId, setSenderStopId] = useState<string | null>(null)       // ← novo
+  const [recipientStopId, setRecipientStopId] = useState<string | null>(null) // ← novo
 
-  // Dados do formulário
   const [formData, setFormData] = useState({ name: "", phone: "", address: "" })
 
-  // Resultado do pagamento
   const [paymentStatus, setPaymentStatus] = useState<"approved" | "pending">("approved")
   const [pixData, setPixData] = useState<{ qrCode?: string; qrCodeBase64?: string }>({})
 
@@ -65,15 +61,21 @@ export default function CarrinhoPage() {
     localStorage.setItem("@SaborEArte:customerAddress", formData.address)
   }, [formData])
 
-  // Chamado pelo CheckoutForm quando o frete é calculado
-  // Salva também no localStorage para a página de sucesso usar após o redirect do MP
-  const handleAddressComplete = (fee: number, qId: string) => {
+  // Atualizado: recebe senderStopId e recipientStopId do CheckoutForm
+  const handleAddressComplete = (fee: number, qId: string, sStopId: string, rStopId: string) => {
     setDeliveryFee(fee)
     setQuotationId(qId)
-    localStorage.setItem("@SaborEArte:quotationId", qId)
+    setSenderStopId(sStopId)
+    setRecipientStopId(rStopId)
+
+    // Persiste no localStorage para o sucesso/page.tsx usar após redirect do MP
+    localStorage.setItem("@SaborEArte:quotationId",      qId)
+    localStorage.setItem("@SaborEArte:senderStopId",     sStopId)
+    localStorage.setItem("@SaborEArte:recipientStopId",  rStopId)
+
+    console.log("✅ [Carrinho] Quote salvo:", { qId, sStopId, rStopId })
   }
 
-  // Chamado quando o pagamento é aprovado ou fica pendente (Pix)
   const handlePaymentSuccess = (
     status: "approved" | "pending",
     pix?: { qrCode?: string; qrCodeBase64?: string }
@@ -90,7 +92,6 @@ export default function CarrinhoPage() {
       <main className="min-h-screen pt-24 pb-20 sm:pt-28">
         <div className="mx-auto max-w-3xl px-4 lg:px-8">
 
-          {/* Cabeçalho */}
           {step !== "confirmation" && (
             <div className="mb-8 flex items-center gap-4">
               <Link
@@ -110,7 +111,6 @@ export default function CarrinhoPage() {
             </div>
           )}
 
-          {/* Aviso loja fechada */}
           {!storeOpen && step !== "confirmation" && (
             <div className="border-destructive/30 bg-destructive/10 mb-6 flex items-center gap-3 rounded-lg border p-4">
               <AlertCircle className="text-destructive h-5 w-5 shrink-0" />
@@ -121,7 +121,6 @@ export default function CarrinhoPage() {
             </div>
           )}
 
-          {/* ETAPA: CONFIRMAÇÃO */}
           {step === "confirmation" && (
             <OrderConfirmation
               status={paymentStatus}
@@ -131,14 +130,11 @@ export default function CarrinhoPage() {
             />
           )}
 
-          {/* ETAPA: CARRINHO VAZIO */}
           {step !== "confirmation" && items.length === 0 && <EmptyCartState />}
 
-          {/* ETAPAS PRINCIPAIS */}
           {step !== "confirmation" && items.length > 0 && (
             <div className="flex flex-col gap-8">
 
-              {/* ETAPA 1: LISTA DO CARRINHO */}
               {step === "cart" && (
                 <div className="flex flex-col gap-6">
                   <CartItemList
@@ -156,7 +152,6 @@ export default function CarrinhoPage() {
                 </div>
               )}
 
-              {/* ETAPA 2: DADOS DE ENTREGA */}
               {step === "details" && (
                 <div className="flex flex-col gap-8">
                   <button
@@ -169,7 +164,9 @@ export default function CarrinhoPage() {
                   <CheckoutForm
                     formData={formData}
                     setFormData={setFormData}
-                    onAddressComplete={(fee, qId) => handleAddressComplete(fee, qId)}
+                    onAddressComplete={(fee, qId, sStopId, rStopId) =>
+                      handleAddressComplete(fee, qId, sStopId, rStopId)
+                    }
                     setIsCalculating={setIsCalculating}
                   />
 
@@ -189,8 +186,7 @@ export default function CarrinhoPage() {
                 </div>
               )}
 
-              {/* ETAPA 3: PAGAMENTO */}
-              {step === "payment" && quotationId && (
+              {step === "payment" && quotationId && senderStopId && recipientStopId && (
                 <div className="flex flex-col gap-6">
                   <button
                     onClick={() => setStep("details")}
@@ -210,6 +206,8 @@ export default function CarrinhoPage() {
                       }}
                       deliveryFee={deliveryFee || 0}
                       quotationId={quotationId}
+                      senderStopId={senderStopId}
+                      recipientStopId={recipientStopId}
                       onSuccess={(status, pix) => handlePaymentSuccess(status, pix)}
                       onError={() => alert("Erro no pagamento. Tente novamente.")}
                     />

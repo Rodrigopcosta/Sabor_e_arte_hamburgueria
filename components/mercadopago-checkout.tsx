@@ -8,6 +8,8 @@ interface MercadoPagoCheckoutProps {
   payer: { name: string; phone: string; address: string }
   deliveryFee: number
   quotationId: string
+  senderStopId: string
+  recipientStopId: string
   onSuccess: (
     status: "approved" | "pending",
     pix?: { qrCode?: string; qrCodeBase64?: string }
@@ -20,6 +22,8 @@ export function MercadoPagoCheckout({
   payer,
   deliveryFee,
   quotationId,
+  senderStopId,
+  recipientStopId,
   onSuccess,
   onError,
 }: MercadoPagoCheckoutProps) {
@@ -33,21 +37,32 @@ export function MercadoPagoCheckout({
 
     async function initCheckoutPro() {
       try {
-        // 1. Cria a preferência no backend
+        console.log("💳 [MP-Checkout] Criando preferência:", {
+          quotationId,
+          senderStopId,
+          recipientStopId,
+        })
+
         const prefResponse = await fetch("/api/mercadopago", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ items, payer, deliveryFee, quotationId }),
+          body: JSON.stringify({
+            items,
+            payer,
+            deliveryFee,
+            quotationId,
+            senderStopId,
+            recipientStopId,
+          }),
         })
 
         const { initPoint } = await prefResponse.json()
 
         if (!initPoint) throw new Error("URL de pagamento não retornada")
 
-        // 2. Redireciona para a página de pagamento do Mercado Pago (produção)
         window.location.href = initPoint
       } catch (err) {
-        console.error("MP Checkout Pro error:", err)
+        console.error("❌ [MP-Checkout] Erro:", err)
         setError(true)
         setLoading(false)
         onError()
