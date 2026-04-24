@@ -20,20 +20,32 @@ function PedidoSucessoContent() {
     processedRef.current = true
 
     const paymentId = searchParams.get("payment_id")
-    const status = searchParams.get("status")
+    const status    = searchParams.get("status")
 
-    // Limpa o carrinho
     clearCart()
 
-    // Busca nome salvo no localStorage
-    const savedName = localStorage.getItem("@SaborEArte:customerName") || ""
+    const savedName          = localStorage.getItem("@SaborEArte:customerName")     || ""
+    const customerPhone      = localStorage.getItem("@SaborEArte:customerPhone")    || ""
+    const deliveryAddress    = localStorage.getItem("@SaborEArte:customerAddress")  || ""
+    const quotationId        = localStorage.getItem("@SaborEArte:quotationId")      || ""
+    const senderStopId       = localStorage.getItem("@SaborEArte:senderStopId")     || ""
+    const recipientStopId    = localStorage.getItem("@SaborEArte:recipientStopId")  || ""
+
     setCustomerName(savedName)
 
-    // Notifica o backend para processar o pagamento aprovado
+    console.log("🎉 [Sucesso] Dados para confirm:", {
+      paymentId,
+      status,
+      quotationId,
+      senderStopId,
+      recipientStopId,
+      customerPhone,
+    })
+
     if (paymentId && status === "approved") {
-      const quotationId = localStorage.getItem("@SaborEArte:quotationId") || ""
-      const customerPhone = localStorage.getItem("@SaborEArte:customerPhone") || ""
-      const deliveryAddress = localStorage.getItem("@SaborEArte:customerAddress") || ""
+      if (!senderStopId || !recipientStopId) {
+        console.error("❌ [Sucesso] stopIds ausentes no localStorage — entrega não será criada automaticamente")
+      }
 
       fetch("/api/mercadopago/confirm", {
         method: "POST",
@@ -41,6 +53,8 @@ function PedidoSucessoContent() {
         body: JSON.stringify({
           paymentId,
           quotationId,
+          senderStopId,
+          recipientStopId,
           customerName: savedName,
           customerPhone,
           deliveryAddress,
