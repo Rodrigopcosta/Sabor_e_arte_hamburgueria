@@ -5,23 +5,25 @@ const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://saboreartes.com.br
 
 export async function POST(request: NextRequest) {
   try {
-    const { items, payer, deliveryFee, quotationId } = await request.json()
+    const { items, payer, deliveryFee, quotationId, senderStopId, recipientStopId } = await request.json()
 
     if (!MP_ACCESS_TOKEN) {
-      return NextResponse.json(
-        { error: "Mercado Pago não configurado" },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: "Mercado Pago não configurado" }, { status: 500 })
     }
 
     if (!items || items.length === 0) {
-      return NextResponse.json(
-        { error: "O pedido deve conter pelo menos um item" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "O pedido deve conter pelo menos um item" }, { status: 400 })
     }
 
-    // ID único para external_reference (requisito de qualidade do MP)
+    console.log("🛒 [MP-Preference] Criando preferência de pagamento")
+    console.log(`   quotationId     : ${quotationId}`)
+    console.log(`   senderStopId    : ${senderStopId}`)
+    console.log(`   recipientStopId : ${recipientStopId}`)
+
+    if (!senderStopId || !recipientStopId) {
+      console.warn("⚠️ [MP-Preference] stopIds ausentes no payload — entrega pode falhar após pagamento!")
+    }
+
     const internalOrderId = `ORDER-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
 
     const mpItems = items.map((item: any) => ({
@@ -49,7 +51,7 @@ export async function POST(request: NextRequest) {
         email: payer.email || "cliente@saboreartes.com.br",
         identification: {
           type: "CPF",
-          number: payer.cpf || "19119119100", // CPF genérico para habilitar PIX
+          number: payer.cpf || "19119119100",
         },
         phone: {
           number: payer.phone,
@@ -59,11 +61,13 @@ export async function POST(request: NextRequest) {
         excluded_payment_types: [{ id: "ticket" }, { id: "atm" }],
         installments: 1,
       },
-      external_reference: internalOrderId, // Requisito de qualidade do MP
+      external_reference: internalOrderId,
       notification_url: `${BASE_URL}/api/mercadopago/webhook`,
       metadata: {
         internal_order_id: internalOrderId,
         quotation_id: quotationId,
+        sender_stop_id: senderStopId,       // ← novo
+        recipient_stop_id: recipientStopId, // ← novo
         customer_name: payer.name,
         customer_phone: payer.phone,
         delivery_address: payer.address,
@@ -77,27 +81,23 @@ export async function POST(request: NextRequest) {
       auto_return: "approved",
     }
 
-    const response = await fetch(
-      "https://api.mercadopago.com/checkout/preferences",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
-        },
-        body: JSON.stringify(preference),
-      }
-    )
+    const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify(preference),
+    })
 
     const result = await response.json()
 
     if (!response.ok) {
-      console.error("MP Error:", result)
-      return NextResponse.json(
-        { error: "Erro ao criar preferência de pagamento" },
-        { status: response.status }
-      )
+      console.error("❌ [MP-Preference] Erro ao criar preferência:", result)
+      return NextResponse.json({ error: "Erro ao criar preferência de pagamento" }, { status: response.status })
     }
+
+    console.log(`✅ [MP-Preference] Preferência criada: ${result.id}`)
 
     return NextResponse.json({
       preferenceId: result.id,
@@ -106,11 +106,8 @@ export async function POST(request: NextRequest) {
       internalOrderId,
     })
   } catch (error) {
-    console.error("MP API error:", error)
-    return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 }
-    )
+    console.error("💥 [MP-Preference] Erro interno:", error)
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
 
