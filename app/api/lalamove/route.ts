@@ -106,6 +106,8 @@ export async function POST(request: NextRequest) {
           return handleOrder(body)
         case "status":
           return handleStatus(body)
+        case "cancel":
+          return handleCancel(body)
         default:
           return NextResponse.json({ error: "Ação inválida" }, { status: 400 })
       }
@@ -382,6 +384,36 @@ async function handleStatus(data: { orderId: string }) {
       : null,
     shareLink: result.data?.shareLink,
   })
+}
+
+async function handleCancel(data: { orderId: string }) {
+  console.log(`\n🚫 [Cancel] Cancelando pedido: ${data.orderId}`)
+
+  if (!data.orderId) {
+    console.error("❌ [Cancel] orderId ausente — abortando")
+    return NextResponse.json({ error: "orderId é obrigatório" }, { status: 400 })
+  }
+
+  const path = `/v3/orders/${data.orderId}`
+  const headers = getAuthHeaders("DELETE", path, "")
+
+  const response = await fetch(`${LALAMOVE_BASE_URL}${path}`, {
+    method: "DELETE",
+    headers,
+  })
+
+  console.log(`📥 [Cancel] Status HTTP: ${response.status}`)
+
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}))
+    console.error(`❌ [Cancel] Falha ao cancelar — HTTP ${response.status}:`, JSON.stringify(result))
+    return NextResponse.json({ error: "Erro ao cancelar pedido", details: result }, { status: response.status })
+  }
+
+  console.log(`✅ [Cancel] Pedido ${data.orderId} cancelado com sucesso`)
+  await sendTelegram(`❌ *Pedido cancelado manualmente*\n\n🆔 Pedido: \`${data.orderId}\``)
+
+  return NextResponse.json({ cancelled: true, orderId: data.orderId })
 }
 
 function handleSimulated(action: string, data: Record<string, unknown>) {
