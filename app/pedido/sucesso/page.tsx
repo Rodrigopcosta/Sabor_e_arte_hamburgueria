@@ -1,60 +1,46 @@
 "use client"
 
 import { Suspense, useEffect, useState, useRef } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { CheckCircle, Loader2 } from "lucide-react"
+import { CheckCircle, Loader2, ArrowRight } from "lucide-react"
 import { Header } from "@/components/header"
 import { useCart } from "@/lib/cart-context"
 
 function PedidoSucessoContent() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const { clearCart } = useCart()
   const processedRef = useRef(false)
 
   const [loading, setLoading] = useState(true)
   const [customerName, setCustomerName] = useState("")
+  const [paymentId, setPaymentId] = useState<string | null>(null)
 
   useEffect(() => {
     if (processedRef.current) return
     processedRef.current = true
 
-    const paymentId = searchParams.get("payment_id")
-    const status    = searchParams.get("status")
+    const pid = searchParams.get("payment_id")
+    const status = searchParams.get("status")
 
+    setPaymentId(pid)
     clearCart()
 
-    const savedName          = localStorage.getItem("@SaborEArte:customerName")     || ""
-    const customerPhone      = localStorage.getItem("@SaborEArte:customerPhone")    || ""
-    const deliveryAddress    = localStorage.getItem("@SaborEArte:customerAddress")  || ""
-    const quotationId        = localStorage.getItem("@SaborEArte:quotationId")      || ""
-    const senderStopId       = localStorage.getItem("@SaborEArte:senderStopId")     || ""
-    const recipientStopId    = localStorage.getItem("@SaborEArte:recipientStopId")  || ""
+    const savedName = localStorage.getItem("@SaborEArte:customerName") || ""
+    const customerPhone = localStorage.getItem("@SaborEArte:customerPhone") || ""
+    const deliveryAddress = localStorage.getItem("@SaborEArte:customerAddress") || ""
+    const quotationId = localStorage.getItem("@SaborEArte:quotationId") || ""
 
     setCustomerName(savedName)
 
-    console.log("🎉 [Sucesso] Dados para confirm:", {
-      paymentId,
-      status,
-      quotationId,
-      senderStopId,
-      recipientStopId,
-      customerPhone,
-    })
-
-    if (paymentId && status === "approved") {
-      if (!senderStopId || !recipientStopId) {
-        console.error("❌ [Sucesso] stopIds ausentes no localStorage — entrega não será criada automaticamente")
-      }
-
+    if (pid && status === "approved") {
       fetch("/api/mercadopago/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          paymentId,
+          paymentId: pid,
           quotationId,
-          senderStopId,
-          recipientStopId,
           customerName: savedName,
           customerPhone,
           deliveryAddress,
@@ -99,6 +85,17 @@ function PedidoSucessoContent() {
                 Pagamento aprovado! Estamos acionando o motoboy agora.
               </p>
             </div>
+
+            {/* Botão de Acompanhamento */}
+            {paymentId && (
+              <button
+                onClick={() => router.push(`/pedido/${paymentId}`)}
+                className="bg-orange-500 text-white flex h-14 w-full items-center justify-center gap-2 rounded-xl font-bold text-lg transition-all hover:bg-orange-600 active:scale-95 sm:w-80"
+              >
+                <span>Acompanhar entrega</span>
+                <ArrowRight className="h-5 w-5" />
+              </button>
+            )}
 
             <div className="bg-secondary w-full rounded-xl p-5 text-left">
               <p className="text-foreground mb-3 font-semibold">
