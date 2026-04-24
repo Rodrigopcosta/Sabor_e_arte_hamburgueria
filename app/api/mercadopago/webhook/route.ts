@@ -5,13 +5,10 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
 
 async function sendTelegram(message: string) {
-  console.log("📤 [Webhook-Telegram] Enviando mensagem...")
-  
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-    console.error("❌ [Webhook-Telegram] Configurações ausentes")
+    console.error("❌ [Webhook-Telegram] Variáveis ausentes")
     return
   }
-  
   try {
     const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: "POST",
@@ -22,9 +19,7 @@ async function sendTelegram(message: string) {
         parse_mode: "Markdown",
       }),
     })
-    
     const result = await response.json()
-    
     if (!response.ok) {
       console.error("❌ [Webhook-Telegram] Erro na API:", result)
     } else {
@@ -43,18 +38,25 @@ async function getPaymentDetails(paymentId: string) {
     )
     return await response.json()
   } catch (error) {
-    console.error("[MP] Erro ao buscar pagamento:", error)
+    console.error("💥 [Webhook-MP] Erro ao buscar pagamento:", error)
     return null
   }
 }
 
 async function createLalamoveOrder(
   quotationId: string,
+  senderStopId: string,
+  recipientStopId: string,
   recipientName: string,
   recipientPhone: string
 ) {
-  console.log("🛵 [Webhook-Lalamove] Criando pedido:", { quotationId, recipientName, recipientPhone })
-  
+  console.log("🛵 [Webhook-Lalamove] Criando pedido de entrega")
+  console.log(`   quotationId     : ${quotationId}`)
+  console.log(`   senderStopId    : ${senderStopId}`)
+  console.log(`   recipientStopId : ${recipientStopId}`)
+  console.log(`   recipientName   : ${recipientName}`)
+  console.log(`   recipientPhone  : ${recipientPhone}`)
+
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://saboreartes.com.br"
     const response = await fetch(`${baseUrl}/api/lalamove`, {
@@ -63,14 +65,15 @@ async function createLalamoveOrder(
       body: JSON.stringify({
         action: "order",
         quotationId,
+        senderStopId,
+        recipientStopId,
         recipientName,
         recipientPhone,
       }),
     })
-    
+
     const result = await response.json()
-    console.log("📦 [Webhook-Lalamove] Resposta:", { status: response.status, ok: response.ok, result })
-    
+    console.log(`📥 [Webhook-Lalamove] HTTP ${response.status}:`, JSON.stringify(result))
     return result
   } catch (error) {
     console.error("💥 [Webhook-Lalamove] Exceção:", error)
@@ -81,10 +84,9 @@ async function createLalamoveOrder(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    console.log("📩 [Webhook] Payload recebido:", JSON.stringify(body, null, 2))
 
     let paymentId = null
-    
+
     if (body.action === "payment.updated" && body.data?.id) {
       paymentId = body.data.id
     } else if (body.type === "payment" && body.data?.id) {
@@ -101,7 +103,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true })
     }
 
-    console.log("💰 [Webhook] Buscando pagamento:", paymentId)
+    console.log(`💰 [Webhook] Buscando pagamento: ${paymentId}`)
     const payment = await getPaymentDetails(paymentId)
 
     if (!payment) {
@@ -109,7 +111,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true })
     }
 
-    console.log("📊 [Webhook] Status do pagamento:", payment.status)
+    console.log(`📊 [Webhook] Status: ${payment.status}`)
 
     if (payment.status !== "approved") {
       console.log(`ℹ️ [Webhook] Pagamento ${paymentId}: ${payment.status}`)
@@ -117,16 +119,20 @@ export async function POST(request: NextRequest) {
     }
 
     const { metadata, transaction_amount } = payment
-    
-    const customerName = metadata?.customer_name || "Cliente"
-    const customerPhone = metadata?.customer_phone || "—"
-    const deliveryAddress = metadata?.delivery_address || "—"
-    const quotationId = metadata?.quotation_id
 
-    console.log("✅ [Webhook] Pedido pago!")
-    console.log("   Cliente:", customerName)
-    console.log("   Telefone original:", customerPhone)
-    console.log("   QuotationId:", quotationId)
+    const customerName     = metadata?.customer_name     || "Cliente"
+    const customerPhone    = metadata?.customer_phone    || "—"
+    const deliveryAddress  = metadata?.delivery_address  || "—"
+    const quotationId      = metadata?.quotation_id
+    const senderStopId     = metadata?.sender_stop_id
+    const recipientStopId  = metadata?.recipient_stop_id
+
+    console.log("✅ [Webhook] Pedido aprovado!")
+    console.log(`   customerName    : ${customerName}`)
+    console.log(`   customerPhone   : ${customerPhone}`)
+    console.log(`   quotationId     : ${quotationId}`)
+    console.log(`   senderStopId    : ${senderStopId}`)
+    console.log(`   recipientStopId : ${recipientStopId}`)
 
     await sendTelegram(
       `🎉 *Novo pedido pago!*\n\n` +
@@ -137,38 +143,51 @@ export async function POST(request: NextRequest) {
       `🛵 Criando pedido de entrega...`
     )
 
-    if (quotationId) {
-      const formattedPhone = customerPhone.startsWith("+") 
-        ? customerPhone 
-        : `+55${customerPhone.replace(/\D/g, "")}`
-      
-      console.log("📱 [Webhook] Telefone formatado:", formattedPhone)
-      
-      const lalamoveOrder = await createLalamoveOrder(
-        quotationId,
-        customerName,
-        formattedPhone
-      )
+    if (!quotationId) {
+      console.error("❌ [Webhook] quotationId ausente no metadata")
+      await sendTelegram(`⚠️ *Atenção!* Pagamento aprovado mas sem quotationId no metadata.\nCrie manualmente no painel da Lalamove.`)
+      return NextResponse.json({ received: true })
+    }
 
-      if (lalamoveOrder?.orderId) {
-        await sendTelegram(
-          `✅ *Entrega confirmada na Lalamove!*\n\n` +
-          `🆔 Pedido: \`${lalamoveOrder.orderId}\`\n` +
-          `📍 [Rastrear entrega](${lalamoveOrder.shareLink})`
-        )
-      } else {
-        console.error("❌ [Webhook] Lalamove não retornou orderId:", lalamoveOrder)
-        await sendTelegram(
-          `⚠️ *Atenção!* Pagamento aprovado mas erro ao criar entrega.\n` +
-          `Crie manualmente no painel da Lalamove.`
-        )
-      }
+    if (!senderStopId || !recipientStopId) {
+      console.error("❌ [Webhook] stopIds ausentes no metadata — verifique se o checkout está enviando senderStopId e recipientStopId ao criar a preferência MP")
+      await sendTelegram(`⚠️ *Atenção!* Pagamento aprovado mas stopIds ausentes.\nCrie manualmente no painel da Lalamove.`)
+      return NextResponse.json({ received: true })
+    }
+
+    const normalizedPhone = customerPhone.startsWith("+")
+      ? customerPhone
+      : `+55${customerPhone.replace(/\D/g, "")}`
+
+    if (normalizedPhone !== customerPhone) {
+      console.log(`📱 [Webhook] Telefone normalizado: "${customerPhone}" → "${normalizedPhone}"`)
+    }
+
+    const lalamoveOrder = await createLalamoveOrder(
+      quotationId,
+      senderStopId,
+      recipientStopId,
+      customerName,
+      normalizedPhone
+    )
+
+    if (lalamoveOrder?.orderId) {
+      console.log(`✅ [Webhook] Entrega criada! orderId: ${lalamoveOrder.orderId}`)
+      await sendTelegram(
+        `✅ *Entrega confirmada na Lalamove!*\n\n` +
+        `🆔 Pedido: \`${lalamoveOrder.orderId}\`\n` +
+        `📍 [Rastrear entrega](${lalamoveOrder.shareLink})`
+      )
     } else {
-      console.error("❌ [Webhook] Sem quotationId nos metadados")
+      console.error("❌ [Webhook] Lalamove não retornou orderId:", JSON.stringify(lalamoveOrder))
+      await sendTelegram(
+        `⚠️ *Atenção!* Pagamento aprovado mas erro ao criar entrega.\n` +
+        `Crie manualmente no painel da Lalamove.`
+      )
     }
 
     return NextResponse.json({ received: true })
-    
+
   } catch (error) {
     console.error("💥 [Webhook] Erro:", error)
     return NextResponse.json({ received: true })

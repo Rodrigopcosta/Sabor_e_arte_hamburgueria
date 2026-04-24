@@ -17,15 +17,22 @@ async function sendTelegram(message: string) {
       }),
     })
   } catch (error) {
-    console.error("[Telegram] Erro:", error)
+    console.error("💥 [Confirm-Telegram] Erro:", error)
   }
 }
 
 async function createLalamoveOrder(
   quotationId: string,
+  senderStopId: string,
+  recipientStopId: string,
   recipientName: string,
   recipientPhone: string
 ) {
+  console.log("🛵 [Confirm-Lalamove] Criando pedido")
+  console.log(`   quotationId     : ${quotationId}`)
+  console.log(`   senderStopId    : ${senderStopId}`)
+  console.log(`   recipientStopId : ${recipientStopId}`)
+
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://saboreartes.com.br"
     const response = await fetch(`${baseUrl}/api/lalamove`, {
@@ -34,42 +41,55 @@ async function createLalamoveOrder(
       body: JSON.stringify({
         action: "order",
         quotationId,
+        senderStopId,
+        recipientStopId,
         recipientName,
         recipientPhone,
       }),
     })
-    return await response.json()
+    const result = await response.json()
+    console.log(`📥 [Confirm-Lalamove] HTTP ${response.status}:`, JSON.stringify(result))
+    return result
   } catch (error) {
-    console.error("[Lalamove] Erro ao criar pedido:", error)
+    console.error("💥 [Confirm-Lalamove] Exceção:", error)
     return null
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { paymentId, quotationId, customerName, customerPhone, deliveryAddress } =
-      await request.json()
+    const {
+      paymentId,
+      quotationId,
+      senderStopId,
+      recipientStopId,
+      customerName,
+      customerPhone,
+      deliveryAddress,
+    } = await request.json()
 
     if (!paymentId) {
       return NextResponse.json({ error: "paymentId obrigatório" }, { status: 400 })
     }
 
-    // Busca os detalhes do pagamento na API do MP
+    console.log(`💰 [Confirm] Verificando pagamento: ${paymentId}`)
+    console.log(`   quotationId     : ${quotationId}`)
+    console.log(`   senderStopId    : ${senderStopId}`)
+    console.log(`   recipientStopId : ${recipientStopId}`)
+
     const paymentResponse = await fetch(
       `https://api.mercadopago.com/v1/payments/${paymentId}`,
-      {
-        headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
-      }
+      { headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` } }
     )
-
     const payment = await paymentResponse.json()
 
     if (!paymentResponse.ok) {
-      console.error("Erro ao buscar pagamento:", payment)
+      console.error("❌ [Confirm] Erro ao buscar pagamento:", payment)
       return NextResponse.json({ error: "Erro ao buscar pagamento" }, { status: 500 })
     }
 
     const { status, transaction_amount, payment_type_id } = payment
+    console.log(`📊 [Confirm] Status: ${status}`)
 
     if (status !== "approved") {
       return NextResponse.json({ received: true, status }, { status: 200 })
@@ -77,7 +97,6 @@ export async function POST(request: NextRequest) {
 
     const paymentMethod = payment_type_id === "credit_card" ? "💳 Cartão de crédito" : "⚡ Pix"
 
-    // Notifica o dono no Telegram
     await sendTelegram(
       `🎉 *Novo pedido pago!*\n\n` +
       `👤 *Cliente:* ${customerName}\n` +
@@ -88,31 +107,42 @@ export async function POST(request: NextRequest) {
       `🛵 Criando pedido de entrega...`
     )
 
-    // Cria o pedido na Lalamove
-    if (quotationId) {
-      const lalamoveOrder = await createLalamoveOrder(
-        quotationId,
-        customerName,
-        customerPhone
-      )
+    if (!quotationId || !senderStopId || !recipientStopId) {
+      console.error("❌ [Confirm] Dados da Lalamove ausentes no payload")
+      await sendTelegram(`⚠️ *Atenção!* Pagamento aprovado mas dados de entrega ausentes.\nCrie manualmente no painel da Lalamove.`)
+      return NextResponse.json({ received: true, status: "approved" })
+    }
 
-      if (lalamoveOrder?.orderId) {
-        await sendTelegram(
-          `✅ *Entrega confirmada na Lalamove!*\n\n` +
-          `🆔 Pedido: \`${lalamoveOrder.orderId}\`\n` +
-          `📍 [Rastrear entrega](${lalamoveOrder.shareLink})`
-        )
-      } else {
-        await sendTelegram(
-          `⚠️ *Atenção!* Pagamento aprovado mas erro ao criar entrega.\n` +
-          `Crie manualmente no painel da Lalamove.`
-        )
-      }
+    const normalizedPhone = customerPhone.startsWith("+")
+      ? customerPhone
+      : `+55${customerPhone.replace(/\D/g, "")}`
+
+    const lalamoveOrder = await createLalamoveOrder(
+      quotationId,
+      senderStopId,
+      recipientStopId,
+      customerName,
+      normalizedPhone
+    )
+
+    if (lalamoveOrder?.orderId) {
+      console.log(`✅ [Confirm] Entrega criada! orderId: ${lalamoveOrder.orderId}`)
+      await sendTelegram(
+        `✅ *Entrega confirmada na Lalamove!*\n\n` +
+        `🆔 Pedido: \`${lalamoveOrder.orderId}\`\n` +
+        `📍 [Rastrear entrega](${lalamoveOrder.shareLink})`
+      )
+    } else {
+      console.error("❌ [Confirm] Lalamove não retornou orderId:", JSON.stringify(lalamoveOrder))
+      await sendTelegram(
+        `⚠️ *Atenção!* Pagamento aprovado mas erro ao criar entrega.\n` +
+        `Crie manualmente no painel da Lalamove.`
+      )
     }
 
     return NextResponse.json({ received: true, status: "approved" })
   } catch (error) {
-    console.error("Confirm payment error:", error)
+    console.error("💥 [Confirm] Erro interno:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
