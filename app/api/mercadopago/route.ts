@@ -44,6 +44,13 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    const itemsSummary = items
+      .map((item: any) => `${item.quantity}x ${item.name}`)
+      .join(" | ")
+    const itemsSerialized = items
+      .map((item: any) => `${item.quantity}:${item.name}:${item.price.toFixed(2)}`)
+      .join(";")
+
     const preference = {
       items: mpItems,
       payer: {
@@ -66,11 +73,15 @@ export async function POST(request: NextRequest) {
       metadata: {
         internal_order_id: internalOrderId,
         quotation_id: quotationId,
-        sender_stop_id: senderStopId,       // ← novo
-        recipient_stop_id: recipientStopId, // ← novo
+        sender_stop_id: senderStopId,
+        recipient_stop_id: recipientStopId,
         customer_name: payer.name,
         customer_phone: payer.phone,
         delivery_address: payer.address,
+        // Novos campos de itens
+        items_summary: itemsSummary,
+        items_serialized: itemsSerialized,
+        delivery_fee: deliveryFee.toFixed(2),
       },
       statement_descriptor: "SABOR E ARTE",
       back_urls: {
@@ -98,6 +109,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`✅ [MP-Preference] Preferência criada: ${result.id}`)
+    console.log(`   items_summary   : ${itemsSummary}`)
 
     return NextResponse.json({
       preferenceId: result.id,
