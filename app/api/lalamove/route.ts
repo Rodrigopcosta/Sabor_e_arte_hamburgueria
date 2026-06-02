@@ -300,8 +300,8 @@ async function handleQuote(data: { destinationAddress: string }) {
       language: "pt_BR",
       stops: [
         {
-          coordinates: { lat: "-23.593539", lng: "-46.748802" },
-          address: "Rua Jose Silvano Filho, 113 - Jardim Lucia, Sao Paulo - SP, 05750-250, BR",
+          coordinates: { lat: "-23.6525957", lng: "-46.7782147" },
+          address: "Av. Carlos Lacerda, 1168 - Vila Pirajussara, São Paulo - SP, 05789-001, BR",
         },
         {
           coordinates: { lat: destCoords.lat, lng: destCoords.lng },
