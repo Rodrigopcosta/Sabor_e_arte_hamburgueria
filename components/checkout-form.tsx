@@ -1,18 +1,20 @@
 "use client"
 
-import { User, Phone, MapPin, Loader2, Search } from "lucide-react"
+import { User, Phone, Mail, MapPin, Loader2, Search } from "lucide-react"
 import { Dispatch, SetStateAction, useState, useEffect, useRef } from "react"
 
 interface CheckoutFormProps {
   formData: {
     name: string
     phone: string
+    email: string
     address: string
   }
   setFormData: Dispatch<
     SetStateAction<{
       name: string
       phone: string
+      email: string
       address: string
     }>
   >
@@ -212,6 +214,26 @@ export function CheckoutForm({
             placeholder="(11) 99999-9999"
             className="border-border bg-input text-foreground focus:ring-primary/20 h-11 w-full cursor-text rounded-lg border px-4 text-sm focus:ring-2 focus:outline-none"
           />
+        </div>
+
+        {/* E-mail */}
+        <div>
+          <label htmlFor="email" className="text-foreground mb-1.5 flex items-center gap-2 text-sm font-medium">
+            <Mail className="text-primary h-4 w-4" /> E-mail
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            value={formData.email}
+            onChange={handleChange}
+            placeholder="seu@email.com"
+            className="border-border bg-input text-foreground focus:ring-primary/20 h-11 w-full cursor-text rounded-lg border px-4 text-sm focus:ring-2 focus:outline-none"
+          />
+          <p className="text-muted-foreground mt-1 ml-1 text-[10px]">
+            Para receber o comprovante e ofertas exclusivas.
+          </p>
         </div>
 
         {/* Endereço - CEP */}

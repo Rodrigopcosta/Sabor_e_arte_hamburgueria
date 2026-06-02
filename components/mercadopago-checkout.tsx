@@ -1,11 +1,13 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Loader2 } from "lucide-react"
+import Script from "next/script"
+import { Loader2, Copy, Check } from "lucide-react"
+import Image from "next/image"
 
 interface MercadoPagoCheckoutProps {
   items: Array<{ id: string; name: string; price: number; quantity: number }>
-  payer: { name: string; phone: string; address: string }
+  payer: { name: string; phone: string; email: string; address: string }
   deliveryFee: number
   quotationId: string
   senderStopId: string
@@ -15,6 +17,18 @@ interface MercadoPagoCheckoutProps {
     pix?: { qrCode?: string; qrCodeBase64?: string }
   ) => void
   onError: () => void
+}
+
+interface PixData {
+  qrCode: string
+  qrCodeBase64: string
+}
+
+declare global {
+  interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    MercadoPago: any
+  }
 }
 
 export function MercadoPagoCheckout({
@@ -27,70 +41,227 @@ export function MercadoPagoCheckout({
   onSuccess,
   onError,
 }: MercadoPagoCheckoutProps) {
+  const brickRef = useRef<{ unmount: () => void } | null>(null)
   const initializedRef = useRef(false)
+  const [sdkReady, setSdkReady] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const [brickError, setBrickError] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [pixData, setPixData] = useState<PixData | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const totalAmount = parseFloat(
+    (items.reduce((s, i) => s + i.price * i.quantity, 0) + deliveryFee).toFixed(2)
+  )
 
   useEffect(() => {
-    if (initializedRef.current) return
+    if (!sdkReady || initializedRef.current) return
     initializedRef.current = true
 
-    async function initCheckoutPro() {
+    const publicKey =
+      process.env.NEXT_PUBLIC_MP_PUBLIC_KEY ??
+      process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY
+
+    if (!publicKey) {
+      console.error("❌ [MP-Brick] Public Key não definida")
+      setBrickError(true)
+      setLoading(false)
+      return
+    }
+
+    async function initBrick() {
       try {
-        console.log("💳 [MP-Checkout] Criando preferência:", {
-          quotationId,
-          senderStopId,
-          recipientStopId,
+        const mp = new window.MercadoPago(publicKey, { locale: "pt-BR" })
+        const bricks = mp.bricks()
+
+        brickRef.current = await bricks.create("payment", "mp-payment-brick", {
+          initialization: {
+            amount: totalAmount,
+            payer: {
+              email: payer.email,
+              entityType: "individual" as const,
+            },
+          },
+          customization: {
+            paymentMethods: {
+              creditCard: "all",
+              debitCard: "all",
+              bankTransfer: "all",
+              maxInstallments: 1,
+            },
+          },
+          callbacks: {
+            onReady: () => {
+              console.log("✅ [MP-Brick] Brick pronto")
+              setLoading(false)
+            },
+            onError: (err: unknown) => {
+              // onError só é chamado para erros de INICIALIZAÇÃO do Brick
+              console.error("❌ [MP-Brick] onError (init):", JSON.stringify(err))
+              setBrickError(true)
+              setLoading(false)
+              onError()
+            },
+            onSubmit: async ({
+              selectedPaymentMethod,
+              formData,
+            }: {
+              selectedPaymentMethod: string
+              formData: Record<string, unknown>
+            }) => {
+              console.log("💳 [MP-Brick] onSubmit | método:", selectedPaymentMethod)
+              setSubmitError(null)
+              setSubmitting(true)
+
+              try {
+                const res = await fetch("/api/mercadopago/process-payment", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    formData,
+                    selectedPaymentMethod,
+                    payer,
+                    deliveryFee,
+                    quotationId,
+                    senderStopId,
+                    recipientStopId,
+                    items,
+                  }),
+                })
+
+                const data = await res.json()
+                console.log("📥 [MP-Brick] Resposta process-payment:", data)
+
+                if (!res.ok) {
+                  setSubmitError(data.error || "Erro ao processar pagamento")
+                  return
+                }
+
+                if (data.status === "approved") {
+                  onSuccess("approved")
+                } else if (data.status === "pending" && data.pixData) {
+                  setPixData(data.pixData)
+                  onSuccess("pending", {
+                    qrCode: data.pixData.qrCode,
+                    qrCodeBase64: data.pixData.qrCodeBase64,
+                  })
+                } else if (data.status === "pending") {
+                  // in_process (cartão em análise) sem pixData
+                  onSuccess("pending")
+                } else {
+                  setSubmitError(data.error || "Status inesperado. Tente novamente.")
+                }
+              } catch (err) {
+                console.error("❌ [MP-Brick] Exceção no onSubmit:", err)
+                setSubmitError("Erro de conexão. Verifique sua internet e tente novamente.")
+              } finally {
+                setSubmitting(false)
+              }
+            },
+          },
         })
-
-        const prefResponse = await fetch("/api/mercadopago", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            items,
-            payer,
-            deliveryFee,
-            quotationId,
-            senderStopId,
-            recipientStopId,
-          }),
-        })
-
-        const { initPoint } = await prefResponse.json()
-
-        if (!initPoint) throw new Error("URL de pagamento não retornada")
-
-        window.location.href = initPoint
       } catch (err) {
-        console.error("❌ [MP-Checkout] Erro:", err)
-        setError(true)
+        console.error("❌ [MP-Brick] Falha ao inicializar:", err)
+        setBrickError(true)
         setLoading(false)
         onError()
       }
     }
 
-    initCheckoutPro()
-  }, [])
+    initBrick()
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center gap-3 py-8 text-center">
-        <p className="text-destructive font-medium">
-          Erro ao redirecionar para o pagamento.
-        </p>
-        <p className="text-muted-foreground text-sm">
-          Tente novamente em instantes.
-        </p>
-      </div>
-    )
+    return () => {
+      brickRef.current?.unmount()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sdkReady])
+
+  async function handleCopy() {
+    if (!pixData?.qrCode) return
+    await navigator.clipboard.writeText(pixData.qrCode)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2500)
   }
 
+  // ── O Script SEMPRE é renderizado para garantir que o SDK esteja carregado ─
   return (
-    <div className="flex flex-col items-center gap-4 py-10">
-      <Loader2 className="text-primary h-10 w-10 animate-spin" />
-      <p className="text-muted-foreground text-sm">
-        Redirecionando para o Mercado Pago...
-      </p>
-    </div>
+    <>
+      <Script
+        src="https://sdk.mercadopago.com/js/v2"
+        strategy="afterInteractive"
+        onReady={() => setSdkReady(true)}
+      />
+
+      {/* Estado: erro de inicialização do Brick */}
+      {brickError && (
+        <div className="flex flex-col items-center gap-3 py-8 text-center">
+          <p className="text-destructive font-medium">Erro ao carregar o checkout.</p>
+          <p className="text-muted-foreground text-sm">Tente novamente em instantes.</p>
+        </div>
+      )}
+
+      {/* Estado: erro ao submeter pagamento */}
+      {submitError && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-center">
+          <p className="text-destructive text-sm font-medium">{submitError}</p>
+        </div>
+      )}
+
+      {/* Estado: processando pagamento */}
+      {submitting && (
+        <div className="flex items-center justify-center gap-2 py-3">
+          <Loader2 className="text-primary h-4 w-4 animate-spin" />
+          <p className="text-muted-foreground text-sm">Processando pagamento...</p>
+        </div>
+      )}
+
+      {/* Estado: Pix gerado */}
+      {!brickError && pixData && (
+        <div className="flex flex-col items-center gap-5 py-4">
+          <p className="font-semibold text-lg">Pague com Pix</p>
+          {pixData.qrCodeBase64 && (
+            <Image
+              src={`data:image/png;base64,${pixData.qrCodeBase64}`}
+              alt="QR Code Pix"
+              width={200}
+              height={200}
+              className="rounded-xl border border-border"
+            />
+          )}
+          <div className="w-full rounded-xl border border-border bg-secondary p-3 flex items-center gap-2">
+            <p className="flex-1 truncate text-xs text-muted-foreground font-mono">
+              {pixData.qrCode}
+            </p>
+            <button
+              onClick={handleCopy}
+              className="shrink-0 flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition hover:opacity-90"
+            >
+              {copied ? (
+                <><Check className="h-3.5 w-3.5" /> Copiado</>
+              ) : (
+                <><Copy className="h-3.5 w-3.5" /> Copiar</>
+              )}
+            </button>
+          </div>
+          <p className="text-muted-foreground text-xs text-center">
+            O QR Code expira em 30 minutos. Confirmaremos seu pedido assim que o pagamento for identificado.
+          </p>
+        </div>
+      )}
+
+      {/* Estado: loading inicial */}
+      {!brickError && !pixData && loading && (
+        <div className="flex flex-col items-center gap-3 py-10">
+          <Loader2 className="text-primary h-8 w-8 animate-spin" />
+          <p className="text-muted-foreground text-sm">Carregando checkout...</p>
+        </div>
+      )}
+
+      {/* Brick container — sempre no DOM enquanto não há erro de init nem pixData */}
+      {!brickError && !pixData && (
+        <div id="mp-payment-brick" className={loading ? "hidden" : ""} />
+      )}
+    </>
   )
 }

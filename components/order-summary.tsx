@@ -63,7 +63,7 @@ export function OrderSummary({
 
       <button
         onClick={onProcessPayment}
-        disabled={disabled || isCalculating || isDeliveryTooLow || loading}
+        disabled={disabled || isCalculating || loading}
         className="bg-primary text-primary-foreground flex h-14 w-full cursor-pointer items-center justify-center gap-3 rounded-xl text-base font-bold shadow-lg transition-all hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 sm:text-lg"
       >
         {loading ? (

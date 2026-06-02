@@ -34,7 +34,7 @@ export default function CarrinhoPage() {
   const [senderStopId, setSenderStopId] = useState<string | null>(null)       // ← novo
   const [recipientStopId, setRecipientStopId] = useState<string | null>(null) // ← novo
 
-  const [formData, setFormData] = useState({ name: "", phone: "", address: "" })
+  const [formData, setFormData] = useState({ name: "", phone: "", email: "", address: "" })
 
   const [paymentStatus, setPaymentStatus] = useState<"approved" | "pending">("approved")
   const [pixData, setPixData] = useState<{ qrCode?: string; qrCodeBase64?: string }>({})
@@ -42,8 +42,9 @@ export default function CarrinhoPage() {
   useEffect(() => {
     const savedName    = localStorage.getItem("@SaborEArte:customerName")    || ""
     const savedPhone   = localStorage.getItem("@SaborEArte:customerPhone")   || ""
+    const savedEmail   = localStorage.getItem("@SaborEArte:customerEmail")   || ""
     const savedAddress = localStorage.getItem("@SaborEArte:customerAddress") || ""
-    setFormData({ name: savedName, phone: savedPhone, address: savedAddress })
+    setFormData({ name: savedName, phone: savedPhone, email: savedEmail, address: savedAddress })
 
     const checkStatus = () => {
       const status = getStoreStatusMessage()
@@ -58,6 +59,7 @@ export default function CarrinhoPage() {
   useEffect(() => {
     localStorage.setItem("@SaborEArte:customerName",    formData.name)
     localStorage.setItem("@SaborEArte:customerPhone",   formData.phone)
+    localStorage.setItem("@SaborEArte:customerEmail",   formData.email)
     localStorage.setItem("@SaborEArte:customerAddress", formData.address)
   }, [formData])
 
@@ -177,9 +179,9 @@ export default function CarrinhoPage() {
                     loading={false}
                     disabled={
                       !formData.name ||
-                      !formData.address ||
                       !storeOpen ||
-                      !quotationId
+                      !quotationId ||
+                      deliveryFee === null
                     }
                     onProcessPayment={() => setStep("payment")}
                   />
@@ -202,6 +204,7 @@ export default function CarrinhoPage() {
                       payer={{
                         name: formData.name,
                         phone: formData.phone,
+                        email: formData.email,
                         address: formData.address,
                       }}
                       deliveryFee={deliveryFee || 0}
