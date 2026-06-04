@@ -48,7 +48,7 @@ export const menuItems: MenuItem[] = [
     category: "combos",
     includes: ["1x X-Burguer Clássico", "1x Coca-Cola Lata 350ml"],
   },
-    {
+  {
     id: "batata-cheddar",
     name: "Batata com Cheddar",
     description:
@@ -119,51 +119,57 @@ export const STORE_INFO = {
   domain: "https://saboreartes.com.br",
   deliveryMinFee: 5,
   hours: {
-    weekdays: { open: 9, close: 18 },
-    saturday: { open: 9, close: 23 },
-    sunday: { open: 0, close: 23 },
+    weekdays: { open: 18, close: 23.5 }, // 18h às 23h30 (terça a quinta)
+    saturday: { open: 18, close: 24 }, // 18h à meia-noite (sexta e sábado)
+    sunday: { open: 18, close: 24 }, // 18h à meia-noite (domingo)
   },
 }
 
+// ============================================
+// IMPORTA A FUNÇÃO DE HORÁRIO REAL
+// ============================================
+import { getRealStoreStatus } from "./store-utils"
+
+// ============================================
+// FUNÇÃO isStoreOpen()
+// ============================================
+
 export function isStoreOpen(): boolean {
-  return true // Forçado como aberto conforme sua regra atual
+  // ========================================
+  // 🔥 MODO PRODUÇÃO (usar horário real)
+  // Descomente ESTA linha e comente o return false/true abaixo
+  // ========================================
+  // const status = getRealStoreStatus()
+  // return status.isOpen
+
+  // ========================================
+  // 🧪 MODO TESTE (forçar loja aberta)
+  // Descomente ESTA linha e comente o bloco de produção acima
+  // ========================================
+  return true
 }
 
+// ============================================
+// FUNÇÃO getStoreStatusMessage()
+// ============================================
+
 export function getStoreStatusMessage(): { open: boolean; message: string } {
-  const open = isStoreOpen()
-  if (open) {
-    return { open: true, message: "Aberto agora" }
-  }
+  // ========================================
+  // 🔥 MODO PRODUÇÃO (usar horário real)
+  // Descomente ESTA linha e comente o return abaixo
+  // ========================================
+  const status = getRealStoreStatus()
+  // return { open: status.isOpen, message: status.message }
 
-  const now = new Date()
-  const spTime = new Date(
-    now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" })
-  )
-  const day = spTime.getDay()
-  const hour = spTime.getHours()
+  // ========================================
+  // 🧪 MODO TESTE (forçar loja aberta)
+  // Descomente ESTA linha e comente o bloco de produção acima
+  // ========================================
+  return { open: true, message: "Aberto agora" }
 
-  if (
-    day === 0 ||
-    (day === 6 && hour >= (STORE_INFO.hours.saturday?.close || 0))
-  ) {
-    return { open: false, message: "Fechado - Abrimos segunda às 09:00h" }
-  }
-
-  const openingHour =
-    day === 6 ? STORE_INFO.hours.saturday?.open : STORE_INFO.hours.weekdays.open
-  if (hour < (openingHour || 0)) {
-    return {
-      open: false,
-      message: `Fechado - Abrimos hoje às 0${openingHour}:00h`,
-    }
-  }
-
-  const tomorrow = day === 5 ? "amanhã (sábado)" : "amanhã"
-  const tomorrowOpen =
-    day === 5 ? STORE_INFO.hours.saturday?.open : STORE_INFO.hours.weekdays.open
-
-  return {
-    open: false,
-    message: `Fechado - Abrimos ${tomorrow} às 0${tomorrowOpen}:00h`,
-  }
+  // ========================================
+  // 🧪 MODO TESTE (forçar loja fechada)
+  // Descomente ESTA linha e comente o bloco de produção acima
+  // ========================================
+  // return { open: false, message: "Fechado agora" }
 }

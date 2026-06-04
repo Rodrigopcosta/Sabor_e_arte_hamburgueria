@@ -2,13 +2,13 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { ShoppingCart, Menu, X, Circle } from "lucide-react"
+import { ShoppingCart, Menu, X } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
-import { getStoreStatusMessage } from "@/lib/menu-data" // Ajustado para usar sua lib padrão
+import { getRealStoreStatus } from "@/lib/store-utils"
 import { useState, useEffect } from "react"
 
 export function Header() {
-  const { totalItems, closedMessage } = useCart()
+  const { totalItems } = useCart()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [storeStatus, setStoreStatus] = useState({
     open: false,
@@ -17,26 +17,21 @@ export function Header() {
 
   useEffect(() => {
     const updateStatus = () => {
-      const status = getStoreStatusMessage()
-      setStoreStatus(status)
+      const status = getRealStoreStatus()
+      console.log("🏪 [Header] Status da loja:", status) // Para debug
+      setStoreStatus({
+        open: status.isOpen,
+        message: status.message,
+      })
     }
 
     updateStatus()
-    const interval = setInterval(updateStatus, 30000) // Atualiza a cada 30 segundos
+    const interval = setInterval(updateStatus, 60000)
     return () => clearInterval(interval)
   }, [])
 
   return (
     <>
-      {/* Alerta de Loja Fechada (Banner flutuante opcional) */}
-      {closedMessage && (
-        <div className="animate-in fade-in slide-in-from-top-4 fixed top-24 left-1/2 z-60 -translate-x-1/2 duration-300">
-          <div className="rounded-full border border-red-500/30 bg-red-500/20 px-6 py-2 text-sm font-bold text-white shadow-2xl backdrop-blur-md">
-            {closedMessage}
-          </div>
-        </div>
-      )}
-
       <header className="fixed top-0 right-0 left-0 z-50 border-b border-white/5 bg-[#120f0e]/95 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 lg:px-8">
           {/* LADO ESQUERDO: LOGO E NOME */}
@@ -52,20 +47,30 @@ export function Header() {
                 height={48}
                 className="border-primary/20 rounded-full border-2"
               />
-              <Circle
-                className={`absolute -right-0.5 -bottom-0.5 h-3.5 w-3.5 fill-current sm:hidden ${storeStatus.open ? "text-green-500" : "text-red-600"}`}
+              {/* Bolinha de status - usando div em vez de ícone para garantir a cor */}
+              <div
+                className={`absolute -right-0.5 -bottom-0.5 h-3.5 w-3.5 rounded-full ${
+                  storeStatus.open ? "animate-pulse bg-green-500" : "bg-red-600"
+                }`}
               />
             </div>
             <div className="flex flex-col">
               <span className="text-xl leading-none font-black tracking-tighter text-white uppercase italic">
-                Sabor <span className="text-primary NOT-italic">e</span> Arte
+                Sabor <span className="text-primary not-italic">e</span> Arte
               </span>
+              {/* Texto de status - visível apenas no desktop */}
               <div className="mt-1 hidden items-center gap-1.5 sm:flex">
-                <span
-                  className={`h-2 w-2 rounded-full ${storeStatus.open ? "animate-pulse bg-green-500" : "bg-red-600"}`}
+                <div
+                  className={`h-2 w-2 rounded-full ${
+                    storeStatus.open
+                      ? "animate-pulse bg-green-500"
+                      : "bg-red-600"
+                  }`}
                 />
                 <span
-                  className={`text-[10px] font-bold tracking-widest uppercase ${storeStatus.open ? "text-green-400" : "text-red-500"}`}
+                  className={`text-[10px] font-bold tracking-widest uppercase ${
+                    storeStatus.open ? "text-green-400" : "text-red-500"
+                  }`}
                 >
                   {storeStatus.message}
                 </span>
@@ -101,7 +106,6 @@ export function Header() {
               >
                 <ShoppingCart className="h-5 w-5" />
                 {totalItems > 0 && (
-                  /* AJUSTE AQUI: Fundo escuro, texto branco e anel de destaque para melhor leitura */
                   <span className="ring-primary absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-[#120f0e] text-[11px] font-black text-white ring-2">
                     {totalItems}
                   </span>
@@ -150,10 +154,18 @@ export function Header() {
                   Status da Loja
                 </p>
                 <div
-                  className={`inline-flex items-center gap-3 rounded-full border px-4 py-2 ${storeStatus.open ? "border-green-500/20 bg-green-500/5 text-green-400" : "border-red-500/20 bg-red-500/5 text-red-500"}`}
+                  className={`inline-flex items-center gap-3 rounded-full border px-4 py-2 ${
+                    storeStatus.open
+                      ? "border-green-500/20 bg-green-500/5 text-green-400"
+                      : "border-red-500/20 bg-red-500/5 text-red-500"
+                  }`}
                 >
-                  <Circle
-                    className={`h-2.5 w-2.5 fill-current ${storeStatus.open ? "animate-pulse" : ""}`}
+                  <div
+                    className={`h-2.5 w-2.5 rounded-full ${
+                      storeStatus.open
+                        ? "animate-pulse bg-green-500"
+                        : "bg-red-600"
+                    }`}
                   />
                   <span className="text-sm font-black uppercase italic">
                     {storeStatus.message}

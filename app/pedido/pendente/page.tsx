@@ -28,8 +28,7 @@ function PedidoPendenteContent() {
       <main className="min-h-screen pt-24 pb-20 sm:pt-28">
         <div className="mx-auto max-w-3xl px-4 lg:px-8">
           <div className="border-border bg-card flex flex-col items-center gap-6 rounded-xl border p-6 text-center shadow-sm sm:p-10">
-
-            <div className="bg-yellow-500/10 flex h-20 w-20 items-center justify-center rounded-full">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-yellow-500/10">
               <Clock className="h-10 w-10 text-yellow-500" />
             </div>
 
@@ -38,7 +37,8 @@ function PedidoPendenteContent() {
                 Quase lá{firstName ? `, ${firstName}` : ""}!
               </h1>
               <p className="text-muted-foreground mt-2 text-sm">
-                Seu pagamento está sendo processado. Assim que confirmado, seu pedido será preparado.
+                Seu pagamento está sendo processado. Assim que confirmado, seu
+                pedido será preparado.
               </p>
             </div>
 
@@ -48,13 +48,16 @@ function PedidoPendenteContent() {
               </p>
               <ul className="text-muted-foreground flex flex-col gap-2 text-sm">
                 <li className="flex items-center gap-2">
-                  <span>⚡</span> Se pagou com Pix, aguarde a confirmação (pode levar até 1 minuto)
+                  <span>⚡</span> Se pagou com Pix, aguarde a confirmação (pode
+                  levar até 1 minuto)
                 </li>
                 <li className="flex items-center gap-2">
-                  <span>📱</span> Não feche o aplicativo do seu banco antes de confirmar
+                  <span>📱</span> Não feche o aplicativo do seu banco antes de
+                  confirmar
                 </li>
                 <li className="flex items-center gap-2">
-                  <span>✅</span> Após confirmação, o motoboy será acionado automaticamente
+                  <span>✅</span> Após confirmação, o motoboy será acionado
+                  automaticamente
                 </li>
               </ul>
             </div>
@@ -65,7 +68,9 @@ function PedidoPendenteContent() {
                   ID do pagamento
                 </p>
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-foreground font-mono text-xs">{paymentId}</p>
+                  <p className="text-foreground font-mono text-xs">
+                    {paymentId}
+                  </p>
                   <button
                     onClick={() => navigator.clipboard.writeText(paymentId)}
                     className="text-primary flex items-center gap-1 text-xs hover:underline"
@@ -77,7 +82,8 @@ function PedidoPendenteContent() {
             )}
 
             <p className="text-muted-foreground text-xs">
-              Caso o pagamento não seja confirmado em 30 minutos, entre em contato pelo WhatsApp.
+              Caso o pagamento não seja confirmado em 30 minutos, entre em
+              contato pelo WhatsApp.
             </p>
 
             <Link

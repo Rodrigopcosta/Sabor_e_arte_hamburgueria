@@ -4,7 +4,8 @@ import { Analytics } from "@vercel/analytics/next"
 import { CartProvider } from "@/lib/cart-context"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
-import Script from "next/script" // Importado para o Pixel
+import Script from "next/script"
+// @ts-expect-error - CSS import doesn't have type declarations
 import "./globals.css"
 
 const inter = Inter({
@@ -64,7 +65,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  // Substitua pelo seu ID real do Gerenciador de Negócios
   const FB_PIXEL_ID = "SEU_ID_DO_PIXEL"
 
   const jsonLd = {
@@ -113,8 +113,7 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        
-        {/* Meta Pixel Code */}
+
         <Script
           id="fb-pixel"
           strategy="afterInteractive"
@@ -135,7 +134,6 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-background flex min-h-screen flex-col font-sans antialiased">
-        {/* Noscript do Pixel (fallback caso JS esteja desativado) */}
         <noscript>
           <img
             height="1"

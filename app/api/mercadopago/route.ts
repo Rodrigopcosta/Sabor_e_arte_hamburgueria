@@ -1,18 +1,32 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const MP_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN || ""
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://saboreartes.com.br"
+const BASE_URL =
+  process.env.NEXT_PUBLIC_BASE_URL || "https://saboreartes.com.br"
 
 export async function POST(request: NextRequest) {
   try {
-    const { items, payer, deliveryFee, quotationId, senderStopId, recipientStopId } = await request.json()
+    const {
+      items,
+      payer,
+      deliveryFee,
+      quotationId,
+      senderStopId,
+      recipientStopId,
+    } = await request.json()
 
     if (!MP_ACCESS_TOKEN) {
-      return NextResponse.json({ error: "Mercado Pago não configurado" }, { status: 500 })
+      return NextResponse.json(
+        { error: "Mercado Pago não configurado" },
+        { status: 500 }
+      )
     }
 
     if (!items || items.length === 0) {
-      return NextResponse.json({ error: "O pedido deve conter pelo menos um item" }, { status: 400 })
+      return NextResponse.json(
+        { error: "O pedido deve conter pelo menos um item" },
+        { status: 400 }
+      )
     }
 
     console.log("🛒 [MP-Preference] Criando preferência de pagamento")
@@ -21,7 +35,9 @@ export async function POST(request: NextRequest) {
     console.log(`   recipientStopId : ${recipientStopId}`)
 
     if (!senderStopId || !recipientStopId) {
-      console.warn("⚠️ [MP-Preference] stopIds ausentes no payload — entrega pode falhar após pagamento!")
+      console.warn(
+        "⚠️ [MP-Preference] stopIds ausentes no payload — entrega pode falhar após pagamento!"
+      )
     }
 
     const internalOrderId = `ORDER-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
@@ -48,7 +64,9 @@ export async function POST(request: NextRequest) {
       .map((item: any) => `${item.quantity}x ${item.name}`)
       .join(" | ")
     const itemsSerialized = items
-      .map((item: any) => `${item.quantity}:${item.name}:${item.price.toFixed(2)}`)
+      .map(
+        (item: any) => `${item.quantity}:${item.name}:${item.price.toFixed(2)}`
+      )
       .join(";")
 
     const preference = {
@@ -92,20 +110,26 @@ export async function POST(request: NextRequest) {
       auto_return: "approved",
     }
 
-    const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
-      },
-      body: JSON.stringify(preference),
-    })
+    const response = await fetch(
+      "https://api.mercadopago.com/checkout/preferences",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
+        },
+        body: JSON.stringify(preference),
+      }
+    )
 
     const result = await response.json()
 
     if (!response.ok) {
       console.error("❌ [MP-Preference] Erro ao criar preferência:", result)
-      return NextResponse.json({ error: "Erro ao criar preferência de pagamento" }, { status: response.status })
+      return NextResponse.json(
+        { error: "Erro ao criar preferência de pagamento" },
+        { status: response.status }
+      )
     }
 
     console.log(`✅ [MP-Preference] Preferência criada: ${result.id}`)
@@ -119,7 +143,10 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("💥 [MP-Preference] Erro interno:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Erro interno do servidor" },
+      { status: 500 }
+    )
   }
 }
 

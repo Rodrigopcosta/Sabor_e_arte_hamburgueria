@@ -1,28 +1,62 @@
 import { NextRequest, NextResponse } from "next/server"
+import { normalizePhone, waLink } from "@/lib/whatsapp-deeplink"
 
 const WHATSAPP_PHONE = process.env.WHATSAPP_PHONE || "5511979643448"
 const WHATSAPP_API_TOKEN = process.env.WHATSAPP_API_TOKEN || ""
 const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_ID || ""
 
+const TEMPLATES = {
+  confirmado: "pedido_confirmado",
+  preparo: "pedido_preparo",
+  entrega: "pedido_entrega",
+  entregue: "pedido_entregue",
+} as const
+
+type TemplateType = keyof typeof TEMPLATES
+
 export async function POST(request: NextRequest) {
   try {
-    const { items, total, customerName, customerPhone, address } =
-      await request.json()
+    const body = await request.json()
 
-    let message = `*Novo Pedido - Sabor e Arte*\n\n`
-    message += `Cliente: ${customerName || "Nao informado"}\n`
-    message += `Telefone: ${customerPhone || "Nao informado"}\n`
-    message += `Endereco: ${address || "Retirada no local"}\n\n`
-    message += `*Itens do Pedido:*\n`
+    const { phone, message, template, parameters } = body
 
-    for (const item of items) {
-      message += `${item.quantity}x ${item.name} - R$ ${(item.price * item.quantity).toFixed(2).replace(".", ",")}\n`
+    const targetPhone = normalizePhone(phone || WHATSAPP_PHONE)
+
+    if (!targetPhone) {
+      return NextResponse.json(
+        { error: "phone é obrigatório" },
+        { status: 400 }
+      )
     }
 
-    message += `\n*Total: R$ ${total.toFixed(2).replace(".", ",")}*`
-    message += `\n\nSolicitar entrega via Lalamove.`
+    if (
+      WHATSAPP_API_TOKEN &&
+      WHATSAPP_PHONE_ID &&
+      template &&
+      TEMPLATES[template as TemplateType]
+    ) {
+      const templatePayload: any = {
+        messaging_product: "whatsapp",
+        to: targetPhone,
+        type: "template",
+        template: {
+          name: TEMPLATES[template as TemplateType],
+          language: { code: "pt_BR" },
+        },
+      }
 
-    if (WHATSAPP_API_TOKEN && WHATSAPP_PHONE_ID) {
+      if (parameters && parameters.length > 0) {
+        templatePayload.template.components = [
+          {
+            type: "body",
+            parameters: parameters.map((p: string) => ({
+              type: "text",
+              text: p,
+            })),
+          },
+        ]
+      }
+
       const response = await fetch(
         `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`,
         {
@@ -31,21 +65,25 @@ export async function POST(request: NextRequest) {
             Authorization: `Bearer ${WHATSAPP_API_TOKEN}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            to: WHATSAPP_PHONE,
-            type: "text",
-            text: { body: message },
-          }),
+          body: JSON.stringify(templatePayload),
         }
       )
 
       const result = await response.json()
 
       if (!response.ok) {
+        const fallbackLink = waLink(
+          targetPhone,
+          message || "Atualização do seu pedido"
+        )
         return NextResponse.json(
-          { error: result.error?.message || "Erro ao enviar mensagem" },
-          { status: response.status }
+          {
+            success: false,
+            error: result.error?.message,
+            fallback: true,
+            waLink: fallbackLink,
+          },
+          { status: 200 }
         )
       }
 
@@ -55,13 +93,13 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Fallback: return wa.me link
-    const waLink = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(message)}`
+    const finalMessage = message || "Atualização do seu pedido"
+    const fallbackLink = waLink(targetPhone, finalMessage)
 
     return NextResponse.json({
-      success: true,
-      waLink,
+      success: false,
       fallback: true,
+      waLink: fallbackLink,
     })
   } catch (error) {
     console.error("WhatsApp API error:", error)

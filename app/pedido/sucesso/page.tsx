@@ -28,8 +28,10 @@ function PedidoSucessoContent() {
     clearCart()
 
     const savedName = localStorage.getItem("@SaborEArte:customerName") || ""
-    const customerPhone = localStorage.getItem("@SaborEArte:customerPhone") || ""
-    const deliveryAddress = localStorage.getItem("@SaborEArte:customerAddress") || ""
+    const customerPhone =
+      localStorage.getItem("@SaborEArte:customerPhone") || ""
+    const deliveryAddress =
+      localStorage.getItem("@SaborEArte:customerAddress") || ""
     const quotationId = localStorage.getItem("@SaborEArte:quotationId") || ""
 
     setCustomerName(savedName)
@@ -72,8 +74,7 @@ function PedidoSucessoContent() {
       <main className="min-h-screen pt-24 pb-20 sm:pt-28">
         <div className="mx-auto max-w-3xl px-4 lg:px-8">
           <div className="border-border bg-card flex flex-col items-center gap-6 rounded-xl border p-6 text-center shadow-sm sm:p-10">
-
-            <div className="bg-green-500/10 flex h-20 w-20 items-center justify-center rounded-full">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-green-500/10">
               <CheckCircle className="h-10 w-10 text-green-500" />
             </div>
 
@@ -90,7 +91,7 @@ function PedidoSucessoContent() {
             {paymentId && (
               <button
                 onClick={() => router.push(`/pedido/${paymentId}`)}
-                className="bg-orange-500 text-white flex h-14 w-full items-center justify-center gap-2 rounded-xl font-bold text-lg transition-all hover:bg-orange-600 active:scale-95 sm:w-80"
+                className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-orange-500 text-lg font-bold text-white transition-all hover:bg-orange-600 active:scale-95 sm:w-80"
               >
                 <span>Acompanhar entrega</span>
                 <ArrowRight className="h-5 w-5" />
