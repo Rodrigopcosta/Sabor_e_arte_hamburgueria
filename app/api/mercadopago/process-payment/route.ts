@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const MP_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN || ""
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://saboreartes.com.br"
+const BASE_URL =
+  process.env.NEXT_PUBLIC_BASE_URL || "https://saboreartes.com.br"
 
 interface Item {
   id: string
@@ -39,35 +40,59 @@ export async function POST(request: NextRequest) {
     } = await request.json()
 
     if (!MP_ACCESS_TOKEN) {
-      return NextResponse.json({ error: "Mercado Pago não configurado" }, { status: 500 })
+      return NextResponse.json(
+        { error: "Mercado Pago não configurado" },
+        { status: 500 }
+      )
     }
 
     const totalAmount = parseFloat(
-      (items.reduce((s, i) => s + i.price * i.quantity, 0) + deliveryFee).toFixed(2)
+      (
+        items.reduce((s, i) => s + i.price * i.quantity, 0) + deliveryFee
+      ).toFixed(2)
     )
     const itemsSerialized = items
       .map((i) => `${i.quantity}:${i.name}:${i.price.toFixed(2)}`)
       .join(";")
 
     // Remove campos internos do Brick que a API do MP não aceita
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { entityType: _et, ...safeFormData } = formData as Record<string, unknown> & { entityType?: unknown }
 
-    const formPayer =
-      typeof safeFormData.payer === "object" && safeFormData.payer !== null
-        ? (safeFormData.payer as Record<string, unknown>)
-        : {}
+    const {
+      entityType: _et,
+      amount: _amt,
+      payer: _p,
+      ...safeFormData
+    } = formData as Record<string, unknown> & {
+      entityType?: unknown
+      amount?: unknown
+      payer?: unknown
+    }
+
+    // Campos que o Brick envia e a API aceita diretamente
+    const brickFields: Record<string, unknown> = {}
+    const ALLOWED = [
+      "token",
+      "payment_method_id",
+      "installments",
+      "issuer_id",
+      "payment_method_option_id",
+      "processing_mode",
+      "merchant_account_id",
+    ] as const
+    for (const key of ALLOWED) {
+      if (safeFormData[key] !== undefined) brickFields[key] = safeFormData[key]
+    }
 
     const payload = {
-      ...safeFormData,
+      ...brickFields,
       transaction_amount: totalAmount,
       description: items.map((i) => `${i.quantity}x ${i.name}`).join(" | "),
       statement_descriptor: "SABOR E ARTE",
       payer: {
-        ...formPayer,
         email: payer.email,
         first_name: payer.name.split(" ")[0],
-        last_name: payer.name.split(" ").slice(1).join(" ") || payer.name.split(" ")[0],
+        last_name:
+          payer.name.split(" ").slice(1).join(" ") || payer.name.split(" ")[0],
         phone: {
           area_code: payer.phone.replace(/\D/g, "").slice(0, 2),
           number: payer.phone.replace(/\D/g, "").slice(2),
@@ -88,8 +113,9 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("💳 [process-payment] Enviando para /v1/payments")
-    console.log("   payment_method_id:", formData.payment_method_id)
+    console.log("   payment_method_id:", safeFormData.payment_method_id)
     console.log("   transaction_amount:", totalAmount)
+    console.log("   payload completo:", JSON.stringify(payload, null, 2))
 
     const mpRes = await fetch("https://api.mercadopago.com/v1/payments", {
       method: "POST",
@@ -104,15 +130,24 @@ export async function POST(request: NextRequest) {
     const payment = await mpRes.json()
 
     if (!mpRes.ok) {
-      console.error("❌ [process-payment] Erro MP:", JSON.stringify(payment, null, 2))
+      console.error(
+        "❌ [process-payment] Erro MP:",
+        JSON.stringify(payment, null, 2)
+      )
       const msg =
         payment?.cause?.[0]?.description ||
         payment?.message ||
         "Erro ao processar pagamento"
-      return NextResponse.json({ error: msg }, { status: mpRes.status })
+      // Retorna detalhes completos para debug no front
+      return NextResponse.json(
+        { error: msg, detail: payment },
+        { status: mpRes.status }
+      )
     }
 
-    console.log(`✅ [process-payment] id: ${payment.id} | status: ${payment.status} | type: ${payment.payment_type_id}`)
+    console.log(
+      `✅ [process-payment] id: ${payment.id} | status: ${payment.status} | type: ${payment.payment_type_id}`
+    )
 
     // ── Pix: bank_transfer ou payment_method_id === "pix" ───────────────────
     const isPix =
@@ -142,13 +177,23 @@ export async function POST(request: NextRequest) {
         customerName: payer.name,
         customerPhone: payer.phone,
         deliveryAddress: payer.address,
+        itemsSerialized,
+        deliveryFee: deliveryFee.toFixed(2),
+        total: totalAmount.toFixed(2),
       })
-      return NextResponse.json({ status: "approved", paymentId: String(payment.id) })
+      return NextResponse.json({
+        status: "approved",
+        paymentId: String(payment.id),
+      })
     }
 
     // ── Cartão em análise (in_process) ───────────────────────────────────────
     if (payment.status === "in_process") {
-      return NextResponse.json({ status: "pending", paymentId: String(payment.id), pixData: null })
+      return NextResponse.json({
+        status: "pending",
+        paymentId: String(payment.id),
+        pixData: null,
+      })
     }
 
     // ── Rejeitado ou outro ───────────────────────────────────────────────────
@@ -159,7 +204,10 @@ export async function POST(request: NextRequest) {
     )
   } catch (error) {
     console.error("💥 [process-payment] Erro interno:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Erro interno do servidor" },
+      { status: 500 }
+    )
   }
 }
 
@@ -169,5 +217,7 @@ function triggerConfirm(body: Record<string, string>) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  }).catch((err) => console.error("⚠️ [process-payment] Falha ao acionar /confirm:", err))
+  }).catch((err) =>
+    console.error("⚠️ [process-payment] Falha ao acionar /confirm:", err)
+  )
 }

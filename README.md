@@ -8,14 +8,15 @@
 
 **🔗 Link do Projeto:** [https://saboreartes.com.br/](https://saboreartes.com.br/)
 
-
 ## 📱 Preview do Projeto
+
 ### Desktop
+
 ![Desktop](./public/screenshots/desktop.png)
 
 ### Mobile
-![Mobile](./public/screenshots/mobile.png)
 
+![Mobile](./public/screenshots/mobile.png)
 
 ## 🚀 Sobre o Projeto
 

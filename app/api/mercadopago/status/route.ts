@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
+import { orderStore } from "@/lib/order-store"
 
 const MP_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN || ""
-const BASE_URL        = process.env.NEXT_PUBLIC_BASE_URL     || "https://saboreartes.com.br"
+const BASE_URL =
+  process.env.NEXT_PUBLIC_BASE_URL || "https://saboreartes.com.br"
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,7 +11,10 @@ export async function GET(request: NextRequest) {
     const paymentId = searchParams.get("paymentId")
 
     if (!paymentId) {
-      return NextResponse.json({ error: "paymentId obrigatório" }, { status: 400 })
+      return NextResponse.json(
+        { error: "paymentId obrigatório" },
+        { status: 400 }
+      )
     }
 
     // Busca pagamento no Mercado Pago
@@ -21,15 +26,20 @@ export async function GET(request: NextRequest) {
 
     if (!mpResponse.ok) {
       console.error("❌ [Status] Erro ao buscar pagamento:", payment)
-      return NextResponse.json({ error: "Pagamento não encontrado" }, { status: 404 })
+      return NextResponse.json(
+        { error: "Pagamento não encontrado" },
+        { status: 404 }
+      )
     }
 
     const { status, metadata, transaction_amount } = payment
 
-    const customerName    = metadata?.customer_name    || ""
+    const customerName = metadata?.customer_name || ""
     const deliveryAddress = metadata?.delivery_address || ""
     const itemsSerialized = metadata?.items_serialized || ""
-    const deliveryFee     = metadata?.delivery_fee     || "0.00"
+    const deliveryFee = metadata?.delivery_fee || "0.00"
+    const localOrder = orderStore.get(paymentId)
+    const orderStatus = localOrder?.orderStatus
 
     // Reconstrói itens
     const items = itemsSerialized
@@ -58,28 +68,35 @@ export async function GET(request: NextRequest) {
         const lalaData = await lalaResponse.json()
         if (lalaResponse.ok) {
           delivery = {
-            status:    lalaData.status    || "UNKNOWN",
+            status: lalaData.status || "UNKNOWN",
             shareLink: lalaData.shareLink || null,
-            driver:    lalaData.driver    || null,
+            driver: lalaData.driver || null,
           }
         }
       } catch (err) {
-        console.warn("⚠️ [Status] Não foi possível buscar status Lalamove:", err)
+        console.warn(
+          "⚠️ [Status] Não foi possível buscar status Lalamove:",
+          err
+        )
       }
     }
 
     return NextResponse.json({
       paymentId,
-      paymentStatus: status,           // approved | pending | rejected
+      paymentStatus: orderStatus === "cancelled" ? "cancelled" : status,
+      orderStatus,
       customerName,
       deliveryAddress,
       items,
       deliveryFee: parseFloat(deliveryFee),
       total: transaction_amount || 0,
-      delivery,                        // null enquanto motoboy não foi chamado
+      delivery, // null enquanto motoboy não foi chamado
     })
   } catch (error) {
     console.error("💥 [Status] Erro interno:", error)
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Erro interno do servidor" },
+      { status: 500 }
+    )
   }
 }

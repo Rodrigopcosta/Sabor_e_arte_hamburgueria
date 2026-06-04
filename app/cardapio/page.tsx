@@ -1,11 +1,28 @@
 "use client"
 
+import { useEffect, useRef } from "react"
 import { menuItems, categories, STORE_INFO } from "@/lib/menu-data"
 import { MenuCard } from "@/components/menu-card"
 import { ChevronLeft } from "lucide-react"
 import Link from "next/link"
 
 export default function CardapioPage() {
+  const combosRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    // Verifica se veio com hash #combos (vindo do carrinho)
+    if (window.location.hash === "#combos" && combosRef.current) {
+      setTimeout(() => {
+        combosRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        })
+        // Remove o hash da URL após o scroll para não causar problemas
+        window.history.replaceState(null, "", window.location.pathname)
+      }, 100)
+    }
+  }, [])
+
   return (
     <main className="bg-background min-h-screen pt-24 sm:pt-28">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -35,14 +52,23 @@ export default function CardapioPage() {
         </div>
 
         {/* Listagem por Categorias */}
-        {categories.map((category) => {
+        {categories.map((category, index) => {
           const items = menuItems.filter(
             (item) => item.category === category.id
           )
           if (items.length === 0) return null
 
+          // Adiciona ref na primeira categoria (combos)
+          const isCombos =
+            category.id === "combos" || category.label === "Combos"
+
           return (
-            <section key={category.id} className="mb-20 last:mb-0">
+            <section
+              key={category.id}
+              ref={isCombos ? combosRef : null}
+              id={isCombos ? "combos" : undefined}
+              className="mb-20 scroll-mt-28 last:mb-0"
+            >
               <div className="mb-10 flex items-center gap-6">
                 <h2 className="text-foreground text-2xl font-black tracking-tighter whitespace-nowrap uppercase italic">
                   {category.label}
