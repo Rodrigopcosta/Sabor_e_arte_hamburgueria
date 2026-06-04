@@ -12,6 +12,7 @@ import {
   HelpCircle,
 } from "lucide-react"
 import Link from "next/link"
+import { useCart } from "@/lib/cart-context"
 
 type StepId = "paid" | "preparing" | "delivering" | "delivered" | "cancelled"
 
@@ -99,6 +100,15 @@ export function OrderConfirmation({
   const firstName = customerName.split(" ")[0]
   const [orderStep, setOrderStep] = useState<StepId>("paid")
   const [shareLink, setShareLink] = useState<string | null>(null)
+  const { clearCart } = useCart()
+
+  // Limpa o carrinho quando o pedido é cancelado ou entregue
+  useEffect(() => {
+    if (orderStep === "cancelled" || orderStep === "delivered") {
+      clearCart()
+      localStorage.removeItem("@SaborEArte:lastPaymentId")
+    }
+  }, [orderStep, clearCart])
 
   // Polling de status a cada 5s
   useEffect(() => {
@@ -147,7 +157,7 @@ export function OrderConfirmation({
 
   // Gera o link de ajuda no WhatsApp
   const helpMessage = `Olá! Gostaria de ajuda com o pedido #${paymentId || "sem ID"}.\n\nNome: ${customerName}\nStatus atual: ${stepMessages[orderStep] || "Aguardando"}\n\nPoderia me ajudar?`
-  const whatsappNumber = "5511979643448" // Número do WhatsApp da loja
+  const whatsappNumber = "5511979643448"
   const helpLink = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(helpMessage)}`
 
   // ── Pix pendente ────────────────────────────────────────────────────────────
@@ -189,7 +199,6 @@ export function OrderConfirmation({
           restaurante começará a preparar. 🍔
         </p>
 
-        {/* Botão de ajuda também no Pix pendente */}
         <a
           href={helpLink}
           target="_blank"
@@ -286,7 +295,6 @@ export function OrderConfirmation({
         )}
       </div>
 
-      {/* Botão de ajuda - sempre visível */}
       <div className="flex w-full flex-col gap-3">
         <a
           href={helpLink}
