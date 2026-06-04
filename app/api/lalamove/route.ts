@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import crypto from "crypto"
-import { orderStore } from "@/lib/order-store"
+import { getOrder, setOrder, updateOrderStatus, updateLalamoveInfo, orderStore } from "@/lib/order-store"
 import { formatItems } from "@/app/api/mercadopago/confirm/route"
 import {
   msgPedidoCancelado,
@@ -191,7 +191,7 @@ async function handleConfirm(cq: any) {
   const paymentId = (cq.data as string).replace("confirm_", "")
   const messageId = cq.message?.message_id as number
 
-  const order = orderStore.get(paymentId)
+  const order = await getOrder(paymentId)
   if (!order) {
     await answerCallback(
       cq.id,
@@ -247,7 +247,7 @@ async function handlePrepare(cq: any) {
   const paymentId = (cq.data as string).replace("prepare_", "")
   const messageId = cq.message?.message_id as number
 
-  const order = orderStore.get(paymentId)
+  const order = await getOrder(paymentId)
   if (!order) {
     await answerCallback(
       cq.id,
@@ -260,7 +260,7 @@ async function handlePrepare(cq: any) {
   console.log(`👨🍳 [Prepare] ${paymentId} | ${order.customerName}`)
   await answerCallback(cq.id, "Pedido em preparo! 👨🍳")
 
-  orderStore.set(paymentId, { ...order, orderStatus: "preparing" })
+  await updateOrderStatus(paymentId, "preparing")
 
   const firstName = order.customerName.split(" ")[0]
   const notifyResult = await sendWhatsAppMessage(
@@ -300,13 +300,12 @@ async function handlePrepare(cq: any) {
 async function handleMotoboy(cq: any) {
   const paymentId = (cq.data as string).replace("motoboy_", "")
   const messageId = cq.message?.message_id as number
-  const chatId = cq.message?.chat?.id
 
   console.log(
     `🛵 [Motoboy] INICIANDO para paymentId: ${paymentId}, messageId: ${messageId}`
   )
 
-  const order = orderStore.get(paymentId)
+  const order = await getOrder(paymentId)
   if (!order) {
     await answerCallback(
       cq.id,
@@ -373,17 +372,7 @@ async function handleMotoboy(cq: any) {
   if (orderId && shareLink) {
     console.log(`✅ [Motoboy] Entrega criada: ${orderId}`)
 
-    const updatedOrder = {
-      ...order,
-      orderStatus: "delivering" as const,
-      lalamoveOrderId: orderId,
-      lalamoveShareLink: shareLink,
-      quotationId,
-      senderStopId,
-      recipientStopId,
-    }
-
-    orderStore.set(paymentId, updatedOrder)
+    await updateLalamoveInfo(paymentId, orderId, shareLink)
 
     const firstName = order.customerName.split(" ")[0]
     await sendWhatsAppMessage(
@@ -426,7 +415,7 @@ async function handleCancelOrder(cq: any) {
   const paymentId = (cq.data as string).replace("cancel_order_", "")
   const messageId = cq.message?.message_id as number
 
-  const order = orderStore.get(paymentId)
+  const order = await getOrder(paymentId)
   if (!order) {
     await answerCallback(
       cq.id,
@@ -450,7 +439,7 @@ async function handleCancelOrder(cq: any) {
       ? `⚠️ Falha ao enviar WhatsApp: ${whatsappResult.error || JSON.stringify(whatsappResult.result || whatsappResult)}`
       : "⚠️ Cliente sem telefone informado."
 
-  orderStore.set(paymentId, { ...order, orderStatus: "cancelled" })
+  await updateOrderStatus(paymentId, "cancelled")
 
   await editMessage(
     messageId,
@@ -474,6 +463,8 @@ async function handleCancelDelivery(cq: any) {
   console.log(
     `🔍 [CancelDelivery] Buscando pedido com lalamoveOrderId: ${orderId}`
   )
+  
+  // Usa orderStore.entries() para buscar (mantém compatibilidade)
   for (const [pid, order] of orderStore.entries()) {
     console.log(`🔍 [CancelDelivery] Verificando pedido ${pid}:`, {
       lalamoveOrderId: order.lalamoveOrderId,
@@ -530,21 +521,10 @@ async function handleCancelDelivery(cq: any) {
     await answerCallback(cq.id, "✅ Entrega cancelada!")
 
     if (paymentIdToUpdate) {
-      const order = orderStore.get(paymentIdToUpdate)
-      if (order) {
-        orderStore.set(paymentIdToUpdate, {
-          ...order,
-          orderStatus: "cancelled",
-        })
-        console.log(
-          `✅ [CancelDelivery] Pedido ${paymentIdToUpdate} atualizado para cancelled`
-        )
-
-        const updatedOrder = orderStore.get(paymentIdToUpdate)
-        console.log(
-          `✅ [CancelDelivery] Status após atualização: ${updatedOrder?.orderStatus}`
-        )
-      }
+      await updateOrderStatus(paymentIdToUpdate, "cancelled")
+      console.log(
+        `✅ [CancelDelivery] Pedido ${paymentIdToUpdate} atualizado para cancelled`
+      )
     } else {
       console.warn(
         `⚠️ [CancelDelivery] Não foi possível encontrar o pedido com lalamoveOrderId: ${orderId}`
@@ -885,7 +865,6 @@ async function handleWebhook(body: any, request: NextRequest) {
   }
 
   if (eventType === "ORDER_STATUS_CHANGED") {
-    // 🔥 NÃO envia mensagem para ASSIGNING_DRIVER (evita duplicata com o handleMotoboy)
     if (status !== "ASSIGNING_DRIVER") {
       const messages: Record<string, string> = {
         ON_GOING: `🏍️ *Motoboy a caminho!*\n\n🆔 Pedido: \`${orderId}\`${driverInfo}\n\n📍 [Rastrear](${shareLink})`,
@@ -914,7 +893,7 @@ async function handleWebhook(body: any, request: NextRequest) {
             whatsappResult.error || whatsappResult.result
           )
         }
-        orderStore.set(paymentId, { ...order, orderStatus: "delivered" })
+        await updateOrderStatus(paymentId, "delivered")
       } else {
         console.warn(
           `⚠️ [Webhook] Pedido Lalamove ${orderId} não encontrado no store`

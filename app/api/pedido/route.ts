@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { orderStore } from "@/lib/order-store"
+import { getOrder } from "@/lib/order-store"
 
 export async function GET(request: NextRequest) {
   const paymentId = request.nextUrl.searchParams.get("paymentId")
@@ -12,13 +12,13 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const order = orderStore.get(paymentId)
+  const order = await getOrder(paymentId)
   console.log("📡 [API /pedido] order encontrado:", order)
 
   if (!order) {
-    // Pedido não encontrado no store — pode ter sido concluído/removido
     return NextResponse.json({ status: "not_found" })
   }
+  
   console.log("📡 [API /pedido] Retornando status:", order.orderStatus)
   return NextResponse.json({
     status: order.orderStatus,
