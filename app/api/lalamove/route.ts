@@ -433,7 +433,19 @@ async function handleCancelOrder(cq: any) {
   }
 
   console.log(`❌ [CancelOrder] ${paymentId}`)
-  await answerCallback(cq.id, "Pedido cancelado.")
+  await answerCallback(cq.id, "Processando cancelamento...")
+
+  // 🔥 Tenta fazer o reembolso no Mercado Pago
+  const { refundPayment } = await import("@/lib/mercadopago")
+  const refundResult = await refundPayment(paymentId)
+
+  let refundNote = ""
+  if (refundResult.success) {
+    refundNote = "✅ Reembolso processado com sucesso no Mercado Pago."
+  } else {
+    refundNote = `⚠️ Falha ao processar reembolso automático: ${refundResult.error}. Será necessário reembolsar manualmente no painel do Mercado Pago.`
+    console.error(`❌ [CancelOrder] Falha no reembolso: ${refundResult.error}`)
+  }
 
   const firstName = order.customerName.split(" ")[0]
   const whatsappResult = await sendWhatsAppMessage(
@@ -453,10 +465,10 @@ async function handleCancelOrder(cq: any) {
     `❌ *Pedido cancelado*\n\n` +
       `🆔 Pagamento: \`${paymentId}\`\n\n` +
       `_Pedido marcado como cancelado._\n\n` +
+      `${refundNote}\n\n` +
       `${note}`
   )
 }
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handleCancelDelivery(cq: any) {
   const orderId = (cq.data as string).replace("cancel_delivery_", "")
@@ -574,9 +586,20 @@ async function handleCancelDelivery(cq: any) {
     await answerCallback(cq.id, "✅ Entrega cancelada!")
 
     if (paymentIdToUpdate) {
+      // 🔥 Tenta fazer o reembolso no Mercado Pago
+      const { refundPayment } = await import("@/lib/mercadopago")
+      const refundResult = await refundPayment(paymentIdToUpdate)
+
+      let refundNote = ""
+      if (refundResult.success) {
+        refundNote = "✅ Reembolso processado com sucesso."
+      } else {
+        refundNote = `⚠️ Reembolso automático falhou: ${refundResult.error}`
+      }
+
       await updateOrderStatus(paymentIdToUpdate, "cancelled")
       console.log(
-        `✅ [CancelDelivery] Pedido ${paymentIdToUpdate} atualizado para cancelled`
+        `✅ [CancelDelivery] Pedido ${paymentIdToUpdate} cancelado e reembolsado`
       )
     }
 
