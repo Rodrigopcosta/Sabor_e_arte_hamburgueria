@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import Script from "next/script"
 import { Loader2, Copy, Check } from "lucide-react"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 
 interface MercadoPagoCheckoutProps {
   items: Array<{ id: string; name: string; price: number; quantity: number }>
@@ -23,6 +24,7 @@ interface MercadoPagoCheckoutProps {
 interface PixData {
   qrCode: string
   qrCodeBase64: string
+  paymentId: string
 }
 
 declare global {
@@ -42,8 +44,10 @@ export function MercadoPagoCheckout({
   onSuccess,
   onError,
 }: MercadoPagoCheckoutProps) {
+  const router = useRouter()
   const brickRef = useRef<{ unmount: () => void } | null>(null)
   const initializedRef = useRef(false)
+  const pollingInterval = useRef<NodeJS.Timeout | null>(null)
   const [sdkReady, setSdkReady] = useState(false)
   const [loading, setLoading] = useState(true)
   const [brickError, setBrickError] = useState(false)
@@ -55,12 +59,51 @@ export function MercadoPagoCheckout({
   const [submitting, setSubmitting] = useState(false)
   const [pixData, setPixData] = useState<PixData | null>(null)
   const [copied, setCopied] = useState(false)
+  const [pollingPaymentId, setPollingPaymentId] = useState<string | null>(null)
 
   const totalAmount = parseFloat(
     (items.reduce((s, i) => s + i.price * i.quantity, 0) + deliveryFee).toFixed(
       2
     )
   )
+
+  // Polling para verificar status do pagamento Pix
+  useEffect(() => {
+    if (!pollingPaymentId) return
+
+    const checkPaymentStatus = async () => {
+      try {
+        const res = await fetch(`/api/pedido?paymentId=${pollingPaymentId}`)
+        const data = await res.json()
+        console.log("🔍 [Polling Pix] Status:", data.status)
+
+        if (data.status === "paid") {
+          // Pagamento confirmado!
+          if (pollingInterval.current) {
+            clearInterval(pollingInterval.current)
+            pollingInterval.current = null
+          }
+          // Redireciona para a confirmação
+          router.push(`/confirmacao?paymentId=${pollingPaymentId}`)
+        }
+      } catch (err) {
+        console.error("❌ [Polling Pix] Erro:", err)
+      }
+    }
+
+    // Verifica imediatamente
+    checkPaymentStatus()
+
+    // Depois a cada 3 segundos
+    pollingInterval.current = setInterval(checkPaymentStatus, 3000)
+
+    return () => {
+      if (pollingInterval.current) {
+        clearInterval(pollingInterval.current)
+        pollingInterval.current = null
+      }
+    }
+  }, [pollingPaymentId, router])
 
   useEffect(() => {
     if (!sdkReady || initializedRef.current) return
@@ -162,17 +205,17 @@ export function MercadoPagoCheckout({
                 }
 
                 if (data.status === "approved") {
+                  // Cartão de crédito aprovado imediatamente
                   onSuccess("approved", undefined, data.paymentId)
                 } else if (data.status === "pending" && data.pixData) {
-                  setPixData(data.pixData)
-                  onSuccess(
-                    "pending",
-                    {
-                      qrCode: data.pixData.qrCode,
-                      qrCodeBase64: data.pixData.qrCodeBase64,
-                    },
-                    data.paymentId
-                  )
+                  // Pix: mostra o QR Code e NÃO redireciona
+                  setPixData({
+                    qrCode: data.pixData.qrCode,
+                    qrCodeBase64: data.pixData.qrCodeBase64,
+                    paymentId: data.paymentId,
+                  })
+                  setPollingPaymentId(data.paymentId)
+                  // Não chama onSuccess ainda! Aguarda o pagamento ser confirmado pelo webhook
                 } else if (data.status === "pending") {
                   onSuccess("pending", undefined, data.paymentId)
                 } else {
@@ -317,8 +360,8 @@ export function MercadoPagoCheckout({
               </button>
             </div>
             <p className="text-muted-foreground text-center text-xs">
-              O QR Code expira em 30 minutos. Confirmaremos seu pedido assim que
-              o pagamento for identificado.
+              Após o pagamento, a confirmação pode levar alguns minutos. O
+              pedido será confirmado automaticamente.
             </p>
           </div>
         )}
