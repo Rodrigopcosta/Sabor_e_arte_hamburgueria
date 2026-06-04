@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import crypto from "crypto"
-import { getOrder, setOrder, updateOrderStatus, updateLalamoveInfo, orderStore } from "@/lib/order-store"
+import {
+  getOrder,
+  setOrder,
+  updateOrderStatus,
+  updateLalamoveInfo,
+  orderStore,
+} from "@/lib/order-store"
 import { formatItems } from "@/app/api/mercadopago/confirm/route"
 import {
   msgPedidoCancelado,
@@ -463,7 +469,7 @@ async function handleCancelDelivery(cq: any) {
   console.log(
     `🔍 [CancelDelivery] Buscando pedido com lalamoveOrderId: ${orderId}`
   )
-  
+
   // Usa orderStore.entries() para buscar (mantém compatibilidade)
   for (const [pid, order] of orderStore.entries()) {
     console.log(`🔍 [CancelDelivery] Verificando pedido ${pid}:`, {

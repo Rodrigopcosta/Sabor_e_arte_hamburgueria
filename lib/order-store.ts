@@ -23,8 +23,7 @@ let useDatabase = false
 
 if (typeof process !== "undefined" && process.env.DATABASE_URL) {
   try {
-    const neonModule = require("@neondatabase/serverless")
-    sql = neonModule.neon(process.env.DATABASE_URL)
+    sql = neon(process.env.DATABASE_URL)
     useDatabase = true
     console.log("✅ [order-store] Usando Neon database")
   } catch (error) {
@@ -72,7 +71,7 @@ export async function getOrder(paymentId: string): Promise<OrderData | null> {
         FROM orders 
         WHERE payment_id = ${paymentId}
       `
-      
+
       if (result && result.length > 0) {
         return result[0] as OrderData
       }
@@ -80,15 +79,18 @@ export async function getOrder(paymentId: string): Promise<OrderData | null> {
       console.error("❌ [getOrder] Erro no Neon:", error)
     }
   }
-  
+
   // Fallback para memória
   return memoryStore.get(paymentId) || null
 }
 
-export async function setOrder(paymentId: string, orderData: OrderData): Promise<void> {
+export async function setOrder(
+  paymentId: string,
+  orderData: OrderData
+): Promise<void> {
   // Salva na memória primeiro (sempre)
   memoryStore.set(paymentId, orderData)
-  
+
   // Tenta salvar no banco também
   if (useDatabase && sql) {
     try {
@@ -144,13 +146,16 @@ export async function setOrder(paymentId: string, orderData: OrderData): Promise
   }
 }
 
-export async function updateOrderStatus(paymentId: string, status: OrderData["orderStatus"]): Promise<void> {
+export async function updateOrderStatus(
+  paymentId: string,
+  status: OrderData["orderStatus"]
+): Promise<void> {
   // Atualiza memória
   const order = memoryStore.get(paymentId)
   if (order) {
     memoryStore.set(paymentId, { ...order, orderStatus: status })
   }
-  
+
   // Atualiza banco
   if (useDatabase && sql) {
     try {
@@ -167,21 +172,21 @@ export async function updateOrderStatus(paymentId: string, status: OrderData["or
 }
 
 export async function updateLalamoveInfo(
-  paymentId: string, 
-  lalamoveOrderId: string, 
+  paymentId: string,
+  lalamoveOrderId: string,
   shareLink: string
 ): Promise<void> {
   // Atualiza memória
   const order = memoryStore.get(paymentId)
   if (order) {
-    memoryStore.set(paymentId, { 
-      ...order, 
-      lalamoveOrderId, 
+    memoryStore.set(paymentId, {
+      ...order,
+      lalamoveOrderId,
       lalamoveShareLink: shareLink,
-      orderStatus: "delivering"
+      orderStatus: "delivering",
     })
   }
-  
+
   // Atualiza banco
   if (useDatabase && sql) {
     try {
@@ -194,7 +199,9 @@ export async function updateLalamoveInfo(
           updated_at = NOW()
         WHERE payment_id = ${paymentId}
       `
-      console.log(`✅ [updateLalamoveInfo] Entrega ${lalamoveOrderId} vinculada ao pedido ${paymentId}`)
+      console.log(
+        `✅ [updateLalamoveInfo] Entrega ${lalamoveOrderId} vinculada ao pedido ${paymentId}`
+      )
     } catch (error) {
       console.error(`❌ [updateLalamoveInfo] Erro:`, error)
     }

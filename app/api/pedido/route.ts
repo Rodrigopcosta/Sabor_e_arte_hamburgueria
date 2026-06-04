@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   if (!order) {
     return NextResponse.json({ status: "not_found" })
   }
-  
+
   console.log("📡 [API /pedido] Retornando status:", order.orderStatus)
   return NextResponse.json({
     status: order.orderStatus,
