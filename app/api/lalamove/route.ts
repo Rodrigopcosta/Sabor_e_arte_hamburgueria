@@ -15,6 +15,7 @@ import {
   msgSaiuParaEntrega,
   msgEntregaRealizada,
 } from "@/lib/whatsapp-deeplink"
+import { neon } from "@neondatabase/serverless"
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -432,7 +433,19 @@ async function handleCancelOrder(cq: any) {
   }
 
   console.log(`❌ [CancelOrder] ${paymentId}`)
-  await answerCallback(cq.id, "Pedido cancelado.")
+  await answerCallback(cq.id, "Processando cancelamento...")
+
+  // 🔥 Tenta fazer o reembolso no Mercado Pago
+  const { refundPayment } = await import("@/lib/mercadopago")
+  const refundResult = await refundPayment(paymentId)
+
+  let refundNote = ""
+  if (refundResult.success) {
+    refundNote = "✅ Reembolso processado com sucesso no Mercado Pago."
+  } else {
+    refundNote = `⚠️ Falha ao processar reembolso automático: ${refundResult.error}. Será necessário reembolsar manualmente no painel do Mercado Pago.`
+    console.error(`❌ [CancelOrder] Falha no reembolso: ${refundResult.error}`)
+  }
 
   const firstName = order.customerName.split(" ")[0]
   const whatsappResult = await sendWhatsAppMessage(
@@ -452,10 +465,10 @@ async function handleCancelOrder(cq: any) {
     `❌ *Pedido cancelado*\n\n` +
       `🆔 Pagamento: \`${paymentId}\`\n\n` +
       `_Pedido marcado como cancelado._\n\n` +
+      `${refundNote}\n\n` +
       `${note}`
   )
 }
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handleCancelDelivery(cq: any) {
   const orderId = (cq.data as string).replace("cancel_delivery_", "")
@@ -465,12 +478,12 @@ async function handleCancelDelivery(cq: any) {
   await answerCallback(cq.id, "Cancelando entrega...")
 
   let paymentIdToUpdate = null
+  let orderToUpdate = null
 
+  // 1. Primeiro, tenta encontrar no store em memória
   console.log(
     `🔍 [CancelDelivery] Buscando pedido com lalamoveOrderId: ${orderId}`
   )
-
-  // Usa orderStore.entries() para buscar (mantém compatibilidade)
   for (const [pid, order] of orderStore.entries()) {
     console.log(`🔍 [CancelDelivery] Verificando pedido ${pid}:`, {
       lalamoveOrderId: order.lalamoveOrderId,
@@ -479,16 +492,61 @@ async function handleCancelDelivery(cq: any) {
 
     if (order.lalamoveOrderId === orderId) {
       paymentIdToUpdate = pid
+      orderToUpdate = order
       console.log(
-        `✅ [CancelDelivery] Encontrado! paymentId: ${paymentIdToUpdate}`
+        `✅ [CancelDelivery] Encontrado no store! paymentId: ${paymentIdToUpdate}`
       )
       break
     }
   }
 
+  // 2. Se não encontrou no store, busca no banco de dados
+  if (!paymentIdToUpdate) {
+    console.log(`🔍 [CancelDelivery] Buscando no banco de dados...`)
+    try {
+      const { getOrder } = await import("@/lib/order-store")
+      // Precisa iterar por todos os pedidos? Infelizmente sim, ou criar um índice
+      // Por enquanto, vamos usar uma consulta SQL direta
+      const sql = neon(process.env.DATABASE_URL!)
+
+      const result = await sql`
+        SELECT payment_id, * FROM orders 
+        WHERE lalamove_order_id = ${orderId}
+        LIMIT 1
+      `
+
+      if (result && result.length > 0) {
+        paymentIdToUpdate = result[0].payment_id
+        orderToUpdate = {
+          paymentId: result[0].payment_id,
+          customerName: result[0].customer_name,
+          customerPhone: result[0].customer_phone,
+          deliveryAddress: result[0].delivery_address,
+          itemsSerialized: result[0].items_serialized,
+          deliveryFee: result[0].delivery_fee,
+          total: result[0].total,
+          quotationId: result[0].quotation_id,
+          senderStopId: result[0].sender_stop_id,
+          recipientStopId: result[0].recipient_stop_id,
+          lalamoveOrderId: result[0].lalamove_order_id,
+          lalamoveShareLink: result[0].share_link,
+          orderStatus: result[0].order_status,
+        }
+        console.log(
+          `✅ [CancelDelivery] Encontrado no banco! paymentId: ${paymentIdToUpdate}`
+        )
+
+        // Sincroniza com o store em memória
+        orderStore.set(paymentIdToUpdate, orderToUpdate)
+      }
+    } catch (err) {
+      console.error(`❌ [CancelDelivery] Erro ao buscar no banco:`, err)
+    }
+  }
+
   if (!paymentIdToUpdate) {
     console.warn(
-      `⚠️ [CancelDelivery] Pedido com lalamoveOrderId ${orderId} não encontrado no store`
+      `⚠️ [CancelDelivery] Pedido com lalamoveOrderId ${orderId} não encontrado`
     )
     await answerCallback(
       cq.id,
@@ -501,6 +559,7 @@ async function handleCancelDelivery(cq: any) {
     return
   }
 
+  // Resto do código (cancelar na Lalamove e atualizar status)
   const path = `/v3/orders/${orderId}`
   const headers = getAuthHeaders("DELETE", path, "")
 
@@ -527,13 +586,20 @@ async function handleCancelDelivery(cq: any) {
     await answerCallback(cq.id, "✅ Entrega cancelada!")
 
     if (paymentIdToUpdate) {
+      // 🔥 Tenta fazer o reembolso no Mercado Pago
+      const { refundPayment } = await import("@/lib/mercadopago")
+      const refundResult = await refundPayment(paymentIdToUpdate)
+
+      let refundNote = ""
+      if (refundResult.success) {
+        refundNote = "✅ Reembolso processado com sucesso."
+      } else {
+        refundNote = `⚠️ Reembolso automático falhou: ${refundResult.error}`
+      }
+
       await updateOrderStatus(paymentIdToUpdate, "cancelled")
       console.log(
-        `✅ [CancelDelivery] Pedido ${paymentIdToUpdate} atualizado para cancelled`
-      )
-    } else {
-      console.warn(
-        `⚠️ [CancelDelivery] Não foi possível encontrar o pedido com lalamoveOrderId: ${orderId}`
+        `✅ [CancelDelivery] Pedido ${paymentIdToUpdate} cancelado e reembolsado`
       )
     }
 

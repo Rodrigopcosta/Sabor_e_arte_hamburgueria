@@ -66,7 +66,8 @@ export async function POST(request: NextRequest) {
         customerPhone: metadata?.customer_phone || "",
         deliveryAddress: metadata?.delivery_address || "—",
         itemsSerialized,
-        deliveryFee: metadata?.delivery_fee?.toString().replace(",", ".") || "0",
+        deliveryFee:
+          metadata?.delivery_fee?.toString().replace(",", ".") || "0",
         total: transaction_amount?.toFixed(2) || "0",
       }),
     }).catch((err) =>
