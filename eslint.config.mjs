@@ -14,13 +14,13 @@ export default [
       "@typescript-eslint/no-use-before-define": [
         "warn",
         {
-          "functions": false,
-          "classes": true,
-          "variables": false
-        }
+          functions: false,
+          classes: true,
+          variables: false,
+        },
       ],
-      "prefer-const": "warn"
-    }
+      "prefer-const": "warn",
+    },
   },
   prettierConfig,
 ]
