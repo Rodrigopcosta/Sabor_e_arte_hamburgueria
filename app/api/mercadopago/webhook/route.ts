@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Aciona /confirm — salva no store, envia Telegram com deep link WA
+    // Aciona /confirm — salva no store, envia Telegram
     await fetch(`${BASE_URL}/api/mercadopago/confirm`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -66,8 +66,8 @@ export async function POST(request: NextRequest) {
         customerPhone: metadata?.customer_phone || "",
         deliveryAddress: metadata?.delivery_address || "—",
         itemsSerialized,
-        deliveryFee: metadata?.delivery_fee || "0.00",
-        total: transaction_amount?.toFixed(2).replace(".", ",") || "—",
+        deliveryFee: metadata?.delivery_fee?.toString().replace(",", ".") || "0",
+        total: transaction_amount?.toFixed(2) || "0",
       }),
     }).catch((err) =>
       console.error("⚠️ [Webhook] Falha ao acionar /confirm:", err)
