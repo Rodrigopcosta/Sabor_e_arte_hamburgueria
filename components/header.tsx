@@ -18,7 +18,7 @@ export function Header() {
   useEffect(() => {
     const updateStatus = () => {
       const status = getRealStoreStatus()
-      console.log("🏪 [Header] Status da loja:", status) // Para debug
+      // console.log("🏪 [Header] Status da loja:", status) // Para debug
       setStoreStatus({
         open: status.isOpen,
         message: status.message,

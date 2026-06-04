@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { orderStore, type OrderData } from "@/lib/order-store"
+import { setOrder, type OrderData } from "@/lib/order-store"
 import { msgPedidoConfirmado } from "@/lib/whatsapp-deeplink"
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
@@ -47,7 +47,8 @@ export async function POST(request: NextRequest) {
 
     console.log(`💰 [Confirm] Pedido aprovado: ${paymentId}`)
 
-    orderStore.set(paymentId, {
+    // Usa setOrder assíncrono em vez de orderStore.set
+    await setOrder(paymentId, {
       paymentId,
       customerName,
       customerPhone,
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
       orderStatus: "paid",
     } satisfies OrderData)
 
-    console.log(`💾 [Confirm] Store: ${orderStore.size} pedido(s)`)
+    console.log(`💾 [Confirm] Pedido ${paymentId} salvo`)
 
     const itemsDisplay = formatItems(itemsSerialized)
     const firstName = customerName.split(" ")[0]
