@@ -49,7 +49,8 @@ export async function POST(request: NextRequest) {
 
     const totalAmount = parseFloat(
       (
-        items.reduce((s: number, i: Item) => s + i.price * i.quantity, 0) + deliveryFee
+        items.reduce((s: number, i: Item) => s + i.price * i.quantity, 0) +
+        deliveryFee
       ).toFixed(2)
     )
     const itemsSerialized = items
@@ -84,7 +85,9 @@ export async function POST(request: NextRequest) {
     const payload = {
       ...brickFields,
       transaction_amount: totalAmount,
-      description: items.map((i: Item) => `${i.quantity}x ${i.name}`).join(" | "),
+      description: items
+        .map((i: Item) => `${i.quantity}x ${i.name}`)
+        .join(" | "),
       statement_descriptor: "SABOR E ARTE",
       payer: {
         email: payer.email,
