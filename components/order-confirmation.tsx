@@ -236,10 +236,10 @@ export function OrderConfirmation({
       {/* Número do pedido */}
       {paymentId && (
         <div className="-mt-2 text-center">
-          <span className="text-muted-foreground text-xs uppercase tracking-wider">
+          <span className="text-muted-foreground text-xs tracking-wider uppercase">
             Pedido
           </span>
-          <p className="font-mono text-lg font-bold text-primary">
+          <p className="text-primary font-mono text-lg font-bold">
             #{paymentId.slice(-8)}
           </p>
         </div>

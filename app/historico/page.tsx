@@ -3,7 +3,15 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Header } from "@/components/header"
-import { Phone, Search, Package, Clock, CheckCircle, XCircle, Truck } from "lucide-react"
+import {
+  Phone,
+  Search,
+  Package,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Truck,
+} from "lucide-react"
 
 interface Order {
   payment_id: string
@@ -14,12 +22,35 @@ interface Order {
   created_at: string
 }
 
-const statusConfig: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  paid: { label: "Confirmado", icon: <CheckCircle className="h-4 w-4" />, color: "text-yellow-600" },
-  preparing: { label: "Preparando", icon: <Clock className="h-4 w-4" />, color: "text-blue-600" },
-  delivering: { label: "A caminho", icon: <Truck className="h-4 w-4" />, color: "text-purple-600" },
-  delivered: { label: "Entregue", icon: <CheckCircle className="h-4 w-4" />, color: "text-green-600" },
-  cancelled: { label: "Cancelado", icon: <XCircle className="h-4 w-4" />, color: "text-red-600" },
+const statusConfig: Record<
+  string,
+  { label: string; icon: React.ReactNode; color: string }
+> = {
+  paid: {
+    label: "Confirmado",
+    icon: <CheckCircle className="h-4 w-4" />,
+    color: "text-yellow-600",
+  },
+  preparing: {
+    label: "Preparando",
+    icon: <Clock className="h-4 w-4" />,
+    color: "text-blue-600",
+  },
+  delivering: {
+    label: "A caminho",
+    icon: <Truck className="h-4 w-4" />,
+    color: "text-purple-600",
+  },
+  delivered: {
+    label: "Entregue",
+    icon: <CheckCircle className="h-4 w-4" />,
+    color: "text-green-600",
+  },
+  cancelled: {
+    label: "Cancelado",
+    icon: <XCircle className="h-4 w-4" />,
+    color: "text-red-600",
+  },
 }
 
 export default function HistoricoPage() {
@@ -31,11 +62,11 @@ export default function HistoricoPage() {
 
   const formatPhone = (value: string) => {
     let cleaned = value.replace(/\D/g, "")
-    
+
     if (cleaned.length > 11) {
       cleaned = cleaned.slice(0, 11)
     }
-    
+
     if (cleaned.length <= 11) {
       const match = cleaned.match(/^(\d{2})(\d{5})(\d{4})$/)
       if (match) {
@@ -68,13 +99,15 @@ export default function HistoricoPage() {
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "Data não disponível"
-    
+
     try {
       // Tenta extrair a data diretamente da string ISO
       const date = new Date(dateStr)
       if (isNaN(date.getTime())) {
         // Se falhar, tenta parse manual
-        const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/)
+        const match = dateStr.match(
+          /(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/
+        )
         if (match) {
           const [, year, month, day, hour, minute] = match
           return `${day}/${month}/${year}, ${hour}:${minute}`
@@ -87,7 +120,7 @@ export default function HistoricoPage() {
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
-        timeZone: "UTC"
+        timeZone: "UTC",
       })
     } catch {
       return "Data inválida"
@@ -102,14 +135,16 @@ export default function HistoricoPage() {
 
   const handleSearch = async () => {
     const cleanedPhone = phone.replace(/\D/g, "")
-    
+
     if (cleanedPhone.length === 0) {
       setError("Digite um número de telefone")
       return
     }
-    
+
     if (cleanedPhone.length !== 11) {
-      setError("Digite um número completo com DDD e 9 dígitos (ex: 11999999999)")
+      setError(
+        "Digite um número completo com DDD e 9 dígitos (ex: 11999999999)"
+      )
       return
     }
 
@@ -120,7 +155,7 @@ export default function HistoricoPage() {
     try {
       const res = await fetch(`/api/pedidos-por-telefone?phone=${cleanedPhone}`)
       const data = await res.json()
-      
+
       if (res.ok) {
         const sortedOrders = (data.orders || []).sort((a: Order, b: Order) => {
           const dateA = new Date(a.created_at).getTime()
@@ -160,10 +195,10 @@ export default function HistoricoPage() {
             </p>
           </div>
 
-          <div className="bg-card rounded-xl border p-6 shadow-sm mb-8">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Phone className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+          <div className="bg-card mb-8 rounded-xl border p-6 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row">
+              <div className="relative flex-1">
+                <Phone className="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-gray-400" />
                 <input
                   type="tel"
                   inputMode="numeric"
@@ -175,7 +210,7 @@ export default function HistoricoPage() {
                   onKeyPress={handleKeyPress}
                   placeholder="(11) 99999-9999"
                   maxLength={16}
-                  className="w-full rounded-lg border px-10 py-3 text-base focus:ring-2 focus:ring-primary focus:outline-none"
+                  className="focus:ring-primary w-full rounded-lg border px-10 py-3 text-base focus:ring-2 focus:outline-none"
                 />
               </div>
               <button
@@ -193,9 +228,7 @@ export default function HistoricoPage() {
                 )}
               </button>
             </div>
-            {error && (
-              <p className="text-destructive mt-3 text-sm">{error}</p>
-            )}
+            {error && <p className="text-destructive mt-3 text-sm">{error}</p>}
           </div>
 
           {searched && !loading && orders.length > 0 && (
@@ -203,54 +236,63 @@ export default function HistoricoPage() {
               <h2 className="text-xl font-semibold">
                 Seus pedidos ({orders.length})
               </h2>
-              
+
               {orders.map((order) => {
                 const items = formatItems(order.items_serialized)
-                const status = statusConfig[order.order_status] || { label: order.order_status, icon: null, color: "text-gray-600" }
+                const status = statusConfig[order.order_status] || {
+                  label: order.order_status,
+                  icon: null,
+                  color: "text-gray-600",
+                }
                 const totalValue = getTotalValue(order.total)
-                
+
                 return (
                   <Link
                     key={order.payment_id}
                     href={`/confirmacao?paymentId=${order.payment_id}`}
                     target="_blank"
-                    className="bg-card hover:shadow-md block rounded-xl border p-5 transition-shadow"
+                    className="bg-card block rounded-xl border p-5 transition-shadow hover:shadow-md"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <span className="font-mono text-lg font-bold text-primary">
+                        <span className="text-primary font-mono text-lg font-bold">
                           #{order.payment_id.slice(-8)}
                         </span>
                         <span className="ml-3 text-sm text-gray-500">
                           {formatDate(order.created_at)}
                         </span>
                       </div>
-                      <div className={`flex items-center gap-1 ${status.color} font-medium`}>
+                      <div
+                        className={`flex items-center gap-1 ${status.color} font-medium`}
+                      >
                         {status.icon}
                         <span>{status.label}</span>
                       </div>
                     </div>
 
-                    <div className="text-gray-600 text-sm mb-2">
+                    <div className="mb-2 text-sm text-gray-600">
                       {order.customer_name}
                     </div>
 
-                    <div className="space-y-1 mb-3">
+                    <div className="mb-3 space-y-1">
                       {items.map((item, idx) => (
                         <div key={idx} className="flex justify-between text-sm">
                           <span>
                             {item.qty}x {item.name}
                           </span>
                           <span className="text-gray-500">
-                            R$ {(item.price * item.qty).toFixed(2).replace(".", ",")}
+                            R${" "}
+                            {(item.price * item.qty)
+                              .toFixed(2)
+                              .replace(".", ",")}
                           </span>
                         </div>
                       ))}
                     </div>
 
-                    <div className="flex justify-between items-center pt-2 border-t">
+                    <div className="flex items-center justify-between border-t pt-2">
                       <span className="text-sm text-gray-500">Total</span>
-                      <span className="font-bold text-lg text-primary">
+                      <span className="text-primary text-lg font-bold">
                         R$ {totalValue.toFixed(2).replace(".", ",")}
                       </span>
                     </div>
@@ -269,7 +311,9 @@ export default function HistoricoPage() {
           {searched && !loading && orders.length === 0 && !error && (
             <div className="bg-card rounded-xl border p-12 text-center">
               <Package className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-4 text-lg font-semibold">Nenhum pedido encontrado</h3>
+              <h3 className="mt-4 text-lg font-semibold">
+                Nenhum pedido encontrado
+              </h3>
               <p className="text-muted-foreground mt-2">
                 Não encontramos pedidos para este telefone.
               </p>

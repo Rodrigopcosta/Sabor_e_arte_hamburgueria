@@ -71,24 +71,26 @@ export function Header() {
           {/* LADO DIREITO: NAV E CARRINHO */}
           <div className="flex items-center gap-2 sm:gap-6">
             <nav className="hidden items-center gap-6 md:flex">
-              {["Home", "Cardápio", "Meus Pedidos", "Sobre", "Contato"].map((item) => (
-                <Link
-                  key={item}
-                  href={
-                    item === "Home"
-                      ? "/"
-                      : item === "Meus Pedidos"
-                      ? "/historico"
-                      : `/${item
-                          .toLowerCase()
-                          .normalize("NFD")
-                          .replace(/[\u0300-\u036f]/g, "")}`
-                  }
-                  className="hover:text-primary text-xs font-black tracking-widest text-white/70 uppercase transition-colors"
-                >
-                  {item}
-                </Link>
-              ))}
+              {["Home", "Cardápio", "Meus Pedidos", "Sobre", "Contato"].map(
+                (item) => (
+                  <Link
+                    key={item}
+                    href={
+                      item === "Home"
+                        ? "/"
+                        : item === "Meus Pedidos"
+                          ? "/historico"
+                          : `/${item
+                              .toLowerCase()
+                              .normalize("NFD")
+                              .replace(/[\u0300-\u036f]/g, "")}`
+                    }
+                    className="hover:text-primary text-xs font-black tracking-widest text-white/70 uppercase transition-colors"
+                  >
+                    {item}
+                  </Link>
+                )
+              )}
             </nav>
 
             <div className="flex items-center gap-2 border-l border-white/10 pl-2 sm:gap-3 sm:pl-6">
@@ -122,26 +124,28 @@ export function Header() {
         {mobileMenuOpen && (
           <nav className="animate-in slide-in-from-right fixed inset-0 top-18 z-40 h-screen bg-[#120f0e] px-8 py-10 duration-300 md:hidden">
             <div className="flex flex-col gap-8">
-              {["Home", "Cardápio", "Meus Pedidos", "Sobre", "Contato"].map((item) => (
-                <Link
-                  key={item}
-                  href={
-                    item === "Home"
-                      ? "/"
-                      : item === "Meus Pedidos"
-                      ? "/historico"
-                      : `/${item
-                          .toLowerCase()
-                          .normalize("NFD")
-                          .replace(/[\u0300-\u036f]/g, "")}`
-                  }
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="group flex items-center justify-between text-3xl font-black text-white uppercase italic"
-                >
-                  {item}{" "}
-                  <span className="bg-primary h-2 w-2 rounded-full opacity-0 transition-opacity group-hover:opacity-100" />
-                </Link>
-              ))}
+              {["Home", "Cardápio", "Meus Pedidos", "Sobre", "Contato"].map(
+                (item) => (
+                  <Link
+                    key={item}
+                    href={
+                      item === "Home"
+                        ? "/"
+                        : item === "Meus Pedidos"
+                          ? "/historico"
+                          : `/${item
+                              .toLowerCase()
+                              .normalize("NFD")
+                              .replace(/[\u0300-\u036f]/g, "")}`
+                    }
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="group flex items-center justify-between text-3xl font-black text-white uppercase italic"
+                  >
+                    {item}{" "}
+                    <span className="bg-primary h-2 w-2 rounded-full opacity-0 transition-opacity group-hover:opacity-100" />
+                  </Link>
+                )
+              )}
 
               <div className="mt-auto border-t border-white/5 pt-10 pb-24">
                 <p className="mb-4 text-[10px] tracking-[0.3em] text-white/30 uppercase">

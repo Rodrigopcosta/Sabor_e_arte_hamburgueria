@@ -117,62 +117,65 @@ export default function AdminPedidosPage() {
     }
   }, [soundEnabled])
 
-  const fetchOrders = useCallback(async (showFeedback = false) => {
-    // Evitar múltiplas requisições simultâneas
-    if (isFetchingRef.current) return
-    
-    try {
-      isFetchingRef.current = true
-      
-      const res = await fetch("/api/admin/orders-memory")
-      const data = await res.json()
+  const fetchOrders = useCallback(
+    async (showFeedback = false) => {
+      // Evitar múltiplas requisições simultâneas
+      if (isFetchingRef.current) return
 
-      if (data.orders) {
-        const paidIds = (data.orders as Order[])
-          .filter((o) => o.order_status === "paid")
-          .map((o) => o.payment_id)
+      try {
+        isFetchingRef.current = true
 
-        for (const id of paidIds) {
-          if (!audioPlayedRef.current.has(id)) {
-            audioPlayedRef.current.add(id)
-            console.log("🆕 Novo pedido detectado:", id)
-            playNotificationSound()
+        const res = await fetch("/api/admin/orders-memory")
+        const data = await res.json()
+
+        if (data.orders) {
+          const paidIds = (data.orders as Order[])
+            .filter((o) => o.order_status === "paid")
+            .map((o) => o.payment_id)
+
+          for (const id of paidIds) {
+            if (!audioPlayedRef.current.has(id)) {
+              audioPlayedRef.current.add(id)
+              console.log("🆕 Novo pedido detectado:", id)
+              playNotificationSound()
+            }
+          }
+
+          setOrders(data.orders)
+
+          const today = new Date().toDateString()
+          const todayOrders = (data.orders as Order[]).filter(
+            (o) =>
+              new Date(o.created_at).toDateString() === today &&
+              o.order_status !== "cancelled"
+          )
+          const total = todayOrders.length
+          const revenue = todayOrders.reduce((sum, o) => sum + o.total, 0)
+          const ticket = total > 0 ? revenue / total : 0
+
+          setStats((prev) => {
+            if (prev.lastDate && prev.lastDate !== today) {
+              audioPlayedRef.current.clear()
+              return { total: 0, revenue: 0, ticket: 0, lastDate: today }
+            }
+            return { total, revenue, ticket, lastDate: today }
+          })
+
+          // Mostrar feedback de atualização apenas se foi clique manual
+          if (showFeedback) {
+            setShowRefreshFeedback(true)
+            setTimeout(() => setShowRefreshFeedback(false), 2000)
           }
         }
-
-        setOrders(data.orders)
-
-        const today = new Date().toDateString()
-        const todayOrders = (data.orders as Order[]).filter(
-          (o) =>
-            new Date(o.created_at).toDateString() === today &&
-            o.order_status !== "cancelled"
-        )
-        const total = todayOrders.length
-        const revenue = todayOrders.reduce((sum, o) => sum + o.total, 0)
-        const ticket = total > 0 ? revenue / total : 0
-
-        setStats((prev) => {
-          if (prev.lastDate && prev.lastDate !== today) {
-            audioPlayedRef.current.clear()
-            return { total: 0, revenue: 0, ticket: 0, lastDate: today }
-          }
-          return { total, revenue, ticket, lastDate: today }
-        })
-        
-        // Mostrar feedback de atualização apenas se foi clique manual
-        if (showFeedback) {
-          setShowRefreshFeedback(true)
-          setTimeout(() => setShowRefreshFeedback(false), 2000)
-        }
+      } catch (err) {
+        console.error("Erro:", err)
+      } finally {
+        setLoading(false)
+        isFetchingRef.current = false
       }
-    } catch (err) {
-      console.error("Erro:", err)
-    } finally {
-      setLoading(false)
-      isFetchingRef.current = false
-    }
-  }, [playNotificationSound])
+    },
+    [playNotificationSound]
+  )
 
   // Carregamento inicial
   useEffect(() => {
@@ -187,11 +190,11 @@ export default function AdminPedidosPage() {
   // Intervalo automático - SEM dependências problemáticas
   useEffect(() => {
     if (!authenticated) return
-    
+
     const interval = setInterval(() => {
       fetchOrders(false)
     }, 5000)
-    
+
     return () => clearInterval(interval)
   }, [authenticated, fetchOrders])
 
@@ -331,10 +334,20 @@ export default function AdminPedidosPage() {
       <div className="mx-auto max-w-7xl">
         {/* Toast de feedback de atualização */}
         {showRefreshFeedback && (
-          <div className="fixed top-24 right-4 z-50 animate-in slide-in-from-top-2 fade-in duration-300">
+          <div className="animate-in slide-in-from-top-2 fade-in fixed top-24 right-4 z-50 duration-300">
             <div className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white shadow-lg">
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
               <span className="text-sm font-medium">Pedidos atualizados!</span>
             </div>
@@ -374,16 +387,29 @@ export default function AdminPedidosPage() {
         {logoutModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="mx-4 w-full max-w-sm rounded-lg bg-white p-6">
-              <div className="flex justify-center mb-4">
+              <div className="mb-4 flex justify-center">
                 <div className="rounded-full bg-red-100 p-3">
-                  <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  <svg
+                    className="h-8 w-8 text-red-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                    />
                   </svg>
                 </div>
               </div>
-              <h2 className="mb-2 text-center text-xl font-bold">Sair do Painel</h2>
+              <h2 className="mb-2 text-center text-xl font-bold">
+                Sair do Painel
+              </h2>
               <p className="mb-6 text-center text-gray-600">
-                Tem certeza que deseja sair? Você precisará digitar a senha novamente para acessar.
+                Tem certeza que deseja sair? Você precisará digitar a senha
+                novamente para acessar.
               </p>
               <div className="flex gap-3">
                 <button
@@ -428,23 +454,21 @@ export default function AdminPedidosPage() {
         </div>
 
         {/* Cards de estatísticas */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="rounded-lg bg-white p-4 text-center shadow-sm">
-            <div className="text-primary text-2xl font-bold">
-              {stats.total}
-            </div>
+            <div className="text-primary text-2xl font-bold">{stats.total}</div>
             <div className="text-xs text-gray-500">pedidos hoje</div>
           </div>
-          
+
           <div className="rounded-lg bg-white p-4 text-center shadow-sm">
-            <div className="text-green-600 text-2xl font-bold wrap-break-word">
+            <div className="text-2xl font-bold wrap-break-word text-green-600">
               R$ {stats.revenue.toFixed(2).replace(".", ",")}
             </div>
             <div className="text-xs text-gray-500">faturamento</div>
           </div>
-          
+
           <div className="rounded-lg bg-white p-4 text-center shadow-sm">
-            <div className="text-blue-600 text-2xl font-bold wrap-break-word">
+            <div className="text-2xl font-bold wrap-break-word text-blue-600">
               R$ {stats.ticket.toFixed(2).replace(".", ",")}
             </div>
             <div className="text-xs text-gray-500">ticket médio</div>
@@ -473,7 +497,7 @@ export default function AdminPedidosPage() {
                             href={`/confirmacao?paymentId=${order.payment_id}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:text-primary text-base sm:text-xl font-bold transition hover:underline"
+                            className="hover:text-primary text-base font-bold transition hover:underline sm:text-xl"
                           >
                             #{order.payment_id.slice(-6)}
                           </a>
@@ -483,37 +507,49 @@ export default function AdminPedidosPage() {
                             {waitTime} min
                           </span>
                         </div>
-                        <div className="text-primary text-base sm:text-xl font-bold">
+                        <div className="text-primary text-base font-bold sm:text-xl">
                           R$ {order.total.toFixed(2).replace(".", ",")}
                         </div>
                       </div>
-                      <div className="mb-2 text-sm sm:text-base font-semibold text-gray-800 wrap-break-word">
+                      <div className="mb-2 text-sm font-semibold wrap-break-word text-gray-800 sm:text-base">
                         {order.customer_name}
                       </div>
                       <div className="mb-3 space-y-1 text-gray-700">
                         {items.map((item, idx) => (
-                          <div key={idx} className="flex flex-wrap justify-between gap-2 text-xs sm:text-sm">
+                          <div
+                            key={idx}
+                            className="flex flex-wrap justify-between gap-2 text-xs sm:text-sm"
+                          >
                             <span className="flex items-center gap-1">
-                              <span className="text-primary font-bold">{item.qty}x</span>
-                              <span className="wrap-break-word">{item.name}</span>
+                              <span className="text-primary font-bold">
+                                {item.qty}x
+                              </span>
+                              <span className="wrap-break-word">
+                                {item.name}
+                              </span>
                             </span>
-                            <span className="text-gray-500 whitespace-nowrap">
-                              R$ {(item.price * item.qty).toFixed(2).replace(".", ",")}
+                            <span className="whitespace-nowrap text-gray-500">
+                              R${" "}
+                              {(item.price * item.qty)
+                                .toFixed(2)
+                                .replace(".", ",")}
                             </span>
                           </div>
                         ))}
                       </div>
                     </div>
-                    <div className="mt-4 flex flex-col sm:flex-row gap-2 border-t border-gray-200 pt-3">
+                    <div className="mt-4 flex flex-col gap-2 border-t border-gray-200 pt-3 sm:flex-row">
                       <button
-                        onClick={() => updateStatus(order.payment_id, "preparing")}
-                        className="flex-1 cursor-pointer rounded-lg bg-blue-600 px-3 py-2 text-xs sm:text-sm font-bold text-white transition hover:bg-blue-700"
+                        onClick={() =>
+                          updateStatus(order.payment_id, "preparing")
+                        }
+                        className="flex-1 cursor-pointer rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700 sm:text-sm"
                       >
                         PREPARAR
                       </button>
                       <button
                         onClick={() => handleCancelClick(order.payment_id)}
-                        className="flex-1 cursor-pointer rounded-lg bg-red-600 px-3 py-2 text-xs sm:text-sm font-bold text-white transition hover:bg-red-700"
+                        className="flex-1 cursor-pointer rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700 sm:text-sm"
                       >
                         CANCELAR
                       </button>
@@ -548,7 +584,7 @@ export default function AdminPedidosPage() {
                     <div className="flex-1">
                       <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-base sm:text-xl font-bold">
+                          <span className="text-base font-bold sm:text-xl">
                             #{order.payment_id.slice(-6)}
                           </span>
                           <span
@@ -557,37 +593,49 @@ export default function AdminPedidosPage() {
                             {waitTime} min
                           </span>
                         </div>
-                        <div className="text-primary text-base sm:text-xl font-bold">
+                        <div className="text-primary text-base font-bold sm:text-xl">
                           R$ {order.total.toFixed(2).replace(".", ",")}
                         </div>
                       </div>
-                      <div className="mb-2 text-sm sm:text-base font-semibold text-gray-800 wrap-break-word">
+                      <div className="mb-2 text-sm font-semibold wrap-break-word text-gray-800 sm:text-base">
                         {order.customer_name}
                       </div>
                       <div className="mb-3 space-y-1 text-gray-700">
                         {items.map((item, idx) => (
-                          <div key={idx} className="flex flex-wrap justify-between gap-2 text-xs sm:text-sm">
+                          <div
+                            key={idx}
+                            className="flex flex-wrap justify-between gap-2 text-xs sm:text-sm"
+                          >
                             <span className="flex items-center gap-1">
-                              <span className="text-primary font-bold">{item.qty}x</span>
-                              <span className="wrap-break-word">{item.name}</span>
+                              <span className="text-primary font-bold">
+                                {item.qty}x
+                              </span>
+                              <span className="wrap-break-word">
+                                {item.name}
+                              </span>
                             </span>
-                            <span className="text-gray-500 whitespace-nowrap">
-                              R$ {(item.price * item.qty).toFixed(2).replace(".", ",")}
+                            <span className="whitespace-nowrap text-gray-500">
+                              R${" "}
+                              {(item.price * item.qty)
+                                .toFixed(2)
+                                .replace(".", ",")}
                             </span>
                           </div>
                         ))}
                       </div>
                     </div>
-                    <div className="mt-4 flex flex-col sm:flex-row gap-2 border-t border-gray-200 pt-3">
+                    <div className="mt-4 flex flex-col gap-2 border-t border-gray-200 pt-3 sm:flex-row">
                       <button
-                        onClick={() => updateStatus(order.payment_id, "delivering")}
-                        className="flex-1 cursor-pointer rounded-lg bg-purple-600 px-3 py-2 text-xs sm:text-sm font-bold text-white transition hover:bg-purple-700"
+                        onClick={() =>
+                          updateStatus(order.payment_id, "delivering")
+                        }
+                        className="flex-1 cursor-pointer rounded-lg bg-purple-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-purple-700 sm:text-sm"
                       >
                         A CAMINHO
                       </button>
                       <button
                         onClick={() => handleCancelClick(order.payment_id)}
-                        className="flex-1 cursor-pointer rounded-lg bg-red-600 px-3 py-2 text-xs sm:text-sm font-bold text-white transition hover:bg-red-700"
+                        className="flex-1 cursor-pointer rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700 sm:text-sm"
                       >
                         CANCELAR
                       </button>
@@ -622,7 +670,7 @@ export default function AdminPedidosPage() {
                     <div className="flex-1">
                       <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-base sm:text-xl font-bold">
+                          <span className="text-base font-bold sm:text-xl">
                             #{order.payment_id.slice(-6)}
                           </span>
                           <span
@@ -631,22 +679,32 @@ export default function AdminPedidosPage() {
                             {waitTime} min
                           </span>
                         </div>
-                        <div className="text-primary text-base sm:text-xl font-bold">
+                        <div className="text-primary text-base font-bold sm:text-xl">
                           R$ {order.total.toFixed(2).replace(".", ",")}
                         </div>
                       </div>
-                      <div className="mb-2 text-sm sm:text-base font-semibold text-gray-800 wrap-break-word">
+                      <div className="mb-2 text-sm font-semibold wrap-break-word text-gray-800 sm:text-base">
                         {order.customer_name}
                       </div>
                       <div className="mb-3 space-y-1 text-gray-700">
                         {items.map((item, idx) => (
-                          <div key={idx} className="flex flex-wrap justify-between gap-2 text-xs sm:text-sm">
+                          <div
+                            key={idx}
+                            className="flex flex-wrap justify-between gap-2 text-xs sm:text-sm"
+                          >
                             <span className="flex items-center gap-1">
-                              <span className="text-primary font-bold">{item.qty}x</span>
-                              <span className="wrap-break-word">{item.name}</span>
+                              <span className="text-primary font-bold">
+                                {item.qty}x
+                              </span>
+                              <span className="wrap-break-word">
+                                {item.name}
+                              </span>
                             </span>
-                            <span className="text-gray-500 whitespace-nowrap">
-                              R$ {(item.price * item.qty).toFixed(2).replace(".", ",")}
+                            <span className="whitespace-nowrap text-gray-500">
+                              R${" "}
+                              {(item.price * item.qty)
+                                .toFixed(2)
+                                .replace(".", ",")}
                             </span>
                           </div>
                         ))}
@@ -664,16 +722,18 @@ export default function AdminPedidosPage() {
                         </div>
                       )}
                     </div>
-                    <div className="mt-4 flex flex-col sm:flex-row gap-2 border-t border-gray-200 pt-3">
+                    <div className="mt-4 flex flex-col gap-2 border-t border-gray-200 pt-3 sm:flex-row">
                       <button
-                        onClick={() => updateStatus(order.payment_id, "delivered")}
-                        className="flex-1 cursor-pointer rounded-lg bg-green-600 px-3 py-2 text-xs sm:text-sm font-bold text-white transition hover:bg-green-700"
+                        onClick={() =>
+                          updateStatus(order.payment_id, "delivered")
+                        }
+                        className="flex-1 cursor-pointer rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-green-700 sm:text-sm"
                       >
                         ENTREGUE
                       </button>
                       <button
                         onClick={() => handleCancelClick(order.payment_id)}
-                        className="flex-1 cursor-pointer rounded-lg bg-red-600 px-3 py-2 text-xs sm:text-sm font-bold text-white transition hover:bg-red-700"
+                        className="flex-1 cursor-pointer rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700 sm:text-sm"
                       >
                         CANCELAR
                       </button>
@@ -707,26 +767,36 @@ export default function AdminPedidosPage() {
                     <div className="flex-1">
                       <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
                         <div>
-                          <span className="text-base sm:text-xl font-bold">
+                          <span className="text-base font-bold sm:text-xl">
                             #{order.payment_id.slice(-6)}
                           </span>
                         </div>
-                        <div className="text-primary text-base sm:text-xl font-bold">
+                        <div className="text-primary text-base font-bold sm:text-xl">
                           R$ {order.total.toFixed(2).replace(".", ",")}
                         </div>
                       </div>
-                      <div className="mb-2 text-sm sm:text-base font-semibold text-gray-800 wrap-break-word">
+                      <div className="mb-2 text-sm font-semibold wrap-break-word text-gray-800 sm:text-base">
                         {order.customer_name}
                       </div>
                       <div className="mb-3 space-y-1 text-gray-700">
                         {items.map((item, idx) => (
-                          <div key={idx} className="flex flex-wrap justify-between gap-2 text-xs sm:text-sm">
+                          <div
+                            key={idx}
+                            className="flex flex-wrap justify-between gap-2 text-xs sm:text-sm"
+                          >
                             <span className="flex items-center gap-1">
-                              <span className="text-primary font-bold">{item.qty}x</span>
-                              <span className="wrap-break-word">{item.name}</span>
+                              <span className="text-primary font-bold">
+                                {item.qty}x
+                              </span>
+                              <span className="wrap-break-word">
+                                {item.name}
+                              </span>
                             </span>
-                            <span className="text-gray-500 whitespace-nowrap">
-                              R$ {(item.price * item.qty).toFixed(2).replace(".", ",")}
+                            <span className="whitespace-nowrap text-gray-500">
+                              R${" "}
+                              {(item.price * item.qty)
+                                .toFixed(2)
+                                .replace(".", ",")}
                             </span>
                           </div>
                         ))}
@@ -734,7 +804,7 @@ export default function AdminPedidosPage() {
                     </div>
                     <div className="mt-4 border-t border-gray-200 pt-3">
                       <button
-                        className="w-full cursor-not-allowed rounded-lg bg-gray-400 px-3 py-2 text-xs sm:text-sm font-bold text-white opacity-60"
+                        className="w-full cursor-not-allowed rounded-lg bg-gray-400 px-3 py-2 text-xs font-bold text-white opacity-60 sm:text-sm"
                         disabled
                       >
                         ENTREGUE
@@ -769,18 +839,18 @@ export default function AdminPedidosPage() {
                     >
                       <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
                         <div>
-                          <span className="text-base sm:text-xl font-bold">
+                          <span className="text-base font-bold sm:text-xl">
                             #{order.payment_id.slice(-6)}
                           </span>
                         </div>
-                        <div className="text-base sm:text-xl font-bold text-gray-600">
+                        <div className="text-base font-bold text-gray-600 sm:text-xl">
                           R$ {order.total.toFixed(2).replace(".", ",")}
                         </div>
                       </div>
-                      <div className="mb-2 text-sm sm:text-base font-semibold text-gray-700 wrap-break-word">
+                      <div className="mb-2 text-sm font-semibold wrap-break-word text-gray-700 sm:text-base">
                         {order.customer_name}
                       </div>
-                      <div className="text-xs sm:text-sm text-gray-600">
+                      <div className="text-xs text-gray-600 sm:text-sm">
                         {items.map((item, idx) => (
                           <span key={idx} className="mr-2 inline">
                             {item.qty}x {item.name}

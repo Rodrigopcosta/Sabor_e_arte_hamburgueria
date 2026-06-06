@@ -3,9 +3,12 @@ import { neon } from "@neondatabase/serverless"
 
 export async function GET(request: NextRequest) {
   const phone = request.nextUrl.searchParams.get("phone")
-  
+
   if (!phone) {
-    return NextResponse.json({ error: "Telefone é obrigatório" }, { status: 400 })
+    return NextResponse.json(
+      { error: "Telefone é obrigatório" },
+      { status: 400 }
+    )
   }
 
   // Normaliza o telefone (remove espaços, parênteses, traços)
@@ -13,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const sql = neon(process.env.DATABASE_URL!)
-    
+
     const orders = await sql`
       SELECT 
         payment_id,
@@ -27,10 +30,13 @@ export async function GET(request: NextRequest) {
       ORDER BY created_at DESC
       LIMIT 50
     `
-    
+
     return NextResponse.json({ orders })
   } catch (error) {
     console.error("❌ Erro ao buscar pedidos por telefone:", error)
-    return NextResponse.json({ error: "Erro ao buscar pedidos" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Erro ao buscar pedidos" },
+      { status: 500 }
+    )
   }
 }
