@@ -31,7 +31,7 @@ export default function AdminPedidosPage() {
   })
   const [password, setPassword] = useState("")
   const [authenticated, setAuthenticated] = useState(false)
-  const [soundReady, setSoundReady] = useState(false)
+  const [soundEnabled, setSoundEnabled] = useState(true)
   const [, setTick] = useState(0)
   const [cancelModal, setCancelModal] = useState<{
     show: boolean
@@ -47,9 +47,24 @@ export default function AdminPedidosPage() {
     return () => clearInterval(interval)
   }, [])
 
+  // Salvar preferência do som no localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("@SaborEArte:soundEnabled")
+      if (saved !== null) {
+        setSoundEnabled(saved === "true")
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("@SaborEArte:soundEnabled", soundEnabled.toString())
+    }
+  }, [soundEnabled])
+
   const createAndActivateAudio = useCallback(() => {
     try {
-      // Fecha contexto anterior se existir
       if (audioContextRef.current) {
         audioContextRef.current.close()
       }
@@ -57,36 +72,21 @@ export default function AdminPedidosPage() {
         window.AudioContext || (window as any).webkitAudioContext
       )()
       audioContextRef.current = ctx
-      // Toca bip de confirmação imediatamente (estamos dentro do clique)
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.type = "sine"
-      osc.frequency.value = 660
-      gain.gain.setValueAtTime(0.2, ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.4)
-      osc.start(ctx.currentTime)
-      osc.stop(ctx.currentTime + 0.4)
-      setSoundReady(true)
-      console.log("✅ AudioContext criado no clique, state:", ctx.state)
+      ctx.resume()
+      console.log("✅ AudioContext criado, state:", ctx.state)
     } catch (e) {
       console.error("Erro ao criar AudioContext:", e)
     }
   }, [])
 
   const playNotificationSound = useCallback(() => {
+    if (!soundEnabled) return
+
     const ctx = audioContextRef.current
-    if (!ctx) {
-      console.warn(
-        "🔇 AudioContext não existe — usuário ainda não ativou o som"
-      )
-      return
-    }
+    if (!ctx) return
 
     const doPlay = () => {
       try {
-        // Sequência de dois bips para notificação
         const playBip = (freq: number, startTime: number) => {
           const osc = ctx.createOscillator()
           const gain = ctx.createGain()
@@ -112,7 +112,7 @@ export default function AdminPedidosPage() {
     } else {
       doPlay()
     }
-  }, [])
+  }, [soundEnabled])
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -164,10 +164,9 @@ export default function AdminPedidosPage() {
     if (isAuth === "true") {
       setAuthenticated(true)
       fetchOrders()
-      // Não chama createAndActivateAudio aqui — sem gesto do usuário não funciona
-      // O botão "Ativar Som" aparece no painel para isso
+      createAndActivateAudio()
     }
-  }, [])
+  }, [fetchOrders, createAndActivateAudio])
 
   useEffect(() => {
     if (!authenticated) return
@@ -178,7 +177,6 @@ export default function AdminPedidosPage() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
     if (password === "saborearte123") {
-      // FIX PRINCIPAL: AudioContext criado DENTRO do evento de clique
       createAndActivateAudio()
       localStorage.setItem("@SaborEArte:adminAuth", "true")
       setAuthenticated(true)
@@ -192,7 +190,6 @@ export default function AdminPedidosPage() {
     if (confirm("Deseja realmente sair?")) {
       localStorage.removeItem("@SaborEArte:adminAuth")
       setAuthenticated(false)
-      setSoundReady(false)
       if (audioContextRef.current) {
         audioContextRef.current.close()
         audioContextRef.current = null
@@ -223,7 +220,6 @@ export default function AdminPedidosPage() {
     }
   }
 
-  // FIX TEMPO: Math.max(0) evita negativos, e o setTick a cada 30s força re-render
   const getWaitTime = (createdAt: string) => {
     if (!createdAt) return 0
     const diffMs = new Date().getTime() - new Date(createdAt).getTime()
@@ -341,19 +337,16 @@ export default function AdminPedidosPage() {
           <div className="mb-3 flex items-center justify-between">
             <h1 className="text-2xl font-bold">Painel de Pedidos</h1>
             <div className="flex gap-3">
-              {/* Botão Ativar Som — aparece quando página é recarregada já autenticado */}
-              {!soundReady ? (
-                <button
-                  onClick={createAndActivateAudio}
-                  className="animate-pulse cursor-pointer rounded-lg bg-yellow-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-yellow-600"
-                >
-                  🔔 Ativar Som
-                </button>
-              ) : (
-                <span className="flex items-center px-2 text-sm font-bold text-green-600">
-                  🔊 Som ativo
-                </span>
-              )}
+              <button
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                className={`cursor-pointer rounded-lg px-4 py-2 text-sm font-bold transition ${
+                  soundEnabled
+                    ? "bg-green-600 text-white hover:bg-green-700"
+                    : "bg-gray-500 text-white hover:bg-gray-600"
+                }`}
+              >
+                {soundEnabled ? "🔊 Som Ligado" : "🔇 Som Desligado"}
+              </button>
               <button
                 onClick={fetchOrders}
                 className="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
