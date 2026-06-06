@@ -308,6 +308,8 @@ export function OrderConfirmation({
 
         <Link
           href="/cardapio"
+          target="_blank"
+          rel="noopener noreferrer"
           className="text-primary text-sm font-medium hover:underline"
         >
           Fazer outro pedido

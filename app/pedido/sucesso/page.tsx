@@ -124,6 +124,8 @@ function PedidoSucessoContent() {
 
             <Link
               href="/cardapio"
+              target="_blank"
+              rel="noopener noreferrer"
               className="bg-primary text-primary-foreground flex h-12 w-full items-center justify-center rounded-xl font-bold transition-all hover:brightness-110 active:scale-95 sm:w-auto sm:px-10"
             >
               Fazer outro pedido
