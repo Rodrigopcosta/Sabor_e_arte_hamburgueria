@@ -37,9 +37,12 @@ export default function AdminPedidosPage() {
     show: boolean
     paymentId: string | null
   }>({ show: false, paymentId: null })
+  const [logoutModal, setLogoutModal] = useState(false)
+  const [showRefreshFeedback, setShowRefreshFeedback] = useState(false)
 
   const audioContextRef = useRef<AudioContext | null>(null)
   const audioPlayedRef = useRef<Set<string>>(new Set())
+  const isFetchingRef = useRef(false)
 
   // Atualiza os tempos a cada 30s
   useEffect(() => {
@@ -114,8 +117,13 @@ export default function AdminPedidosPage() {
     }
   }, [soundEnabled])
 
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async (showFeedback = false) => {
+    // Evitar múltiplas requisições simultâneas
+    if (isFetchingRef.current) return
+    
     try {
+      isFetchingRef.current = true
+      
       const res = await fetch("/api/admin/orders-memory")
       const data = await res.json()
 
@@ -151,26 +159,39 @@ export default function AdminPedidosPage() {
           }
           return { total, revenue, ticket, lastDate: today }
         })
+        
+        // Mostrar feedback de atualização apenas se foi clique manual
+        if (showFeedback) {
+          setShowRefreshFeedback(true)
+          setTimeout(() => setShowRefreshFeedback(false), 2000)
+        }
       }
     } catch (err) {
       console.error("Erro:", err)
     } finally {
       setLoading(false)
+      isFetchingRef.current = false
     }
   }, [playNotificationSound])
 
+  // Carregamento inicial
   useEffect(() => {
     const isAuth = localStorage.getItem("@SaborEArte:adminAuth")
     if (isAuth === "true") {
       setAuthenticated(true)
-      fetchOrders()
+      fetchOrders(false)
       createAndActivateAudio()
     }
-  }, [fetchOrders, createAndActivateAudio])
+  }, [createAndActivateAudio, fetchOrders])
 
+  // Intervalo automático - SEM dependências problemáticas
   useEffect(() => {
     if (!authenticated) return
-    const interval = setInterval(fetchOrders, 5000)
+    
+    const interval = setInterval(() => {
+      fetchOrders(false)
+    }, 5000)
+    
     return () => clearInterval(interval)
   }, [authenticated, fetchOrders])
 
@@ -180,21 +201,20 @@ export default function AdminPedidosPage() {
       createAndActivateAudio()
       localStorage.setItem("@SaborEArte:adminAuth", "true")
       setAuthenticated(true)
-      fetchOrders()
+      fetchOrders(false)
     } else {
       alert("Senha incorreta")
     }
   }
 
   const handleLogout = () => {
-    if (confirm("Deseja realmente sair?")) {
-      localStorage.removeItem("@SaborEArte:adminAuth")
-      setAuthenticated(false)
-      if (audioContextRef.current) {
-        audioContextRef.current.close()
-        audioContextRef.current = null
-      }
+    localStorage.removeItem("@SaborEArte:adminAuth")
+    setAuthenticated(false)
+    if (audioContextRef.current) {
+      audioContextRef.current.close()
+      audioContextRef.current = null
     }
+    setLogoutModal(false)
   }
 
   const updateStatus = async (paymentId: string, newStatus: OrderStatus) => {
@@ -204,7 +224,7 @@ export default function AdminPedidosPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ paymentId, status: newStatus }),
       })
-      if (res.ok) fetchOrders()
+      if (res.ok) fetchOrders(false)
     } catch (err) {
       console.error("Erro ao atualizar:", err)
     }
@@ -218,6 +238,10 @@ export default function AdminPedidosPage() {
       updateStatus(cancelModal.paymentId, "cancelled")
       setCancelModal({ show: false, paymentId: null })
     }
+  }
+
+  const handleManualRefresh = () => {
+    fetchOrders(true)
   }
 
   const getWaitTime = (createdAt: string) => {
@@ -303,8 +327,21 @@ export default function AdminPedidosPage() {
     .sort(sortByOldest)
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
+    <div className="min-h-screen bg-gray-100 p-4 pt-20">
       <div className="mx-auto max-w-7xl">
+        {/* Toast de feedback de atualização */}
+        {showRefreshFeedback && (
+          <div className="fixed top-24 right-4 z-50 animate-in slide-in-from-top-2 fade-in duration-300">
+            <div className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white shadow-lg">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-sm font-medium">Pedidos atualizados!</span>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Cancelamento de Pedido */}
         {cancelModal.show && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="mx-4 w-full max-w-sm rounded-lg bg-white p-6">
@@ -333,53 +370,84 @@ export default function AdminPedidosPage() {
           </div>
         )}
 
-        <div className="mt-16 mb-6 rounded-lg bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Painel de Pedidos</h1>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setSoundEnabled(!soundEnabled)}
-                className={`cursor-pointer rounded-lg px-4 py-2 text-sm font-bold transition ${
-                  soundEnabled
-                    ? "bg-green-600 text-white hover:bg-green-700"
-                    : "bg-gray-500 text-white hover:bg-gray-600"
-                }`}
-              >
-                {soundEnabled ? "🔊 Som Ligado" : "🔇 Som Desligado"}
-              </button>
-              <button
-                onClick={fetchOrders}
-                className="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
-              >
-                Atualizar
-              </button>
-              <button
-                onClick={handleLogout}
-                className="cursor-pointer rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700"
-              >
-                Sair
-              </button>
+        {/* Modal de Logout */}
+        {logoutModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="mx-4 w-full max-w-sm rounded-lg bg-white p-6">
+              <div className="flex justify-center mb-4">
+                <div className="rounded-full bg-red-100 p-3">
+                  <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                </div>
+              </div>
+              <h2 className="mb-2 text-center text-xl font-bold">Sair do Painel</h2>
+              <p className="mb-6 text-center text-gray-600">
+                Tem certeza que deseja sair? Você precisará digitar a senha novamente para acessar.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleLogout}
+                  className="flex-1 cursor-pointer rounded-lg bg-red-600 py-2 font-bold text-white transition hover:bg-red-700"
+                >
+                  Sair
+                </button>
+                <button
+                  onClick={() => setLogoutModal(false)}
+                  className="flex-1 cursor-pointer rounded-lg bg-gray-300 py-2 font-bold text-gray-800 transition hover:bg-gray-400"
+                >
+                  Cancelar
+                </button>
+              </div>
             </div>
           </div>
-          <div className="flex items-center justify-between">
-            <div className="flex-1 text-center">
-              <div className="text-primary text-2xl font-bold">
-                {stats.total}
-              </div>
-              <div className="text-xs text-gray-500">pedidos hoje</div>
+        )}
+
+        {/* Botões alinhados à direita */}
+        <div className="mb-6 flex justify-end">
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className="cursor-pointer rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-green-700"
+            >
+              {soundEnabled ? "🔊 Som Ligado" : "🔇 Som Desligado"}
+            </button>
+            <button
+              onClick={handleManualRefresh}
+              className="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
+            >
+              Atualizar
+            </button>
+            <button
+              onClick={() => setLogoutModal(true)}
+              className="cursor-pointer rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700"
+            >
+              Sair
+            </button>
+          </div>
+        </div>
+
+        {/* Cards de estatísticas */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div className="rounded-lg bg-white p-4 text-center shadow-sm">
+            <div className="text-primary text-2xl font-bold">
+              {stats.total}
             </div>
-            <div className="flex-1 text-center">
-              <div className="text-2xl font-bold text-green-600">
-                R$ {stats.revenue.toFixed(2).replace(".", ",")}
-              </div>
-              <div className="text-xs text-gray-500">faturamento</div>
+            <div className="text-xs text-gray-500">pedidos hoje</div>
+          </div>
+          
+          <div className="rounded-lg bg-white p-4 text-center shadow-sm">
+            <div className="text-green-600 text-2xl font-bold wrap-break-word">
+              R$ {stats.revenue.toFixed(2).replace(".", ",")}
             </div>
-            <div className="flex-1 text-center">
-              <div className="text-2xl font-bold text-blue-600">
-                R$ {stats.ticket.toFixed(2).replace(".", ",")}
-              </div>
-              <div className="text-xs text-gray-500">ticket médio</div>
+            <div className="text-xs text-gray-500">faturamento</div>
+          </div>
+          
+          <div className="rounded-lg bg-white p-4 text-center shadow-sm">
+            <div className="text-blue-600 text-2xl font-bold wrap-break-word">
+              R$ {stats.ticket.toFixed(2).replace(".", ",")}
             </div>
+            <div className="text-xs text-gray-500">ticket médio</div>
           </div>
         </div>
 
@@ -399,58 +467,53 @@ export default function AdminPedidosPage() {
                     className={`flex h-full flex-col rounded-lg border bg-white p-4 shadow-sm ${getBorderColor(waitTime)}`}
                   >
                     <div className="flex-1">
-                      <div className="mb-2 flex items-start justify-between">
-                        <div>
+                      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <a
                             href={`/confirmacao?paymentId=${order.payment_id}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:text-primary text-xl font-bold transition hover:underline"
+                            className="hover:text-primary text-base sm:text-xl font-bold transition hover:underline"
                           >
                             #{order.payment_id.slice(-6)}
                           </a>
                           <span
-                            className={`ml-2 text-xs font-bold ${getTimeColor(waitTime)}`}
+                            className={`text-xs font-bold ${getTimeColor(waitTime)}`}
                           >
                             {waitTime} min
                           </span>
                         </div>
-                        <div className="text-primary text-xl font-bold">
+                        <div className="text-primary text-base sm:text-xl font-bold">
                           R$ {order.total.toFixed(2).replace(".", ",")}
                         </div>
                       </div>
-                      <div className="mb-2 text-base font-semibold text-gray-800">
+                      <div className="mb-2 text-sm sm:text-base font-semibold text-gray-800 wrap-break-word">
                         {order.customer_name}
                       </div>
                       <div className="mb-3 space-y-1 text-gray-700">
                         {items.map((item, idx) => (
-                          <div key={idx} className="flex gap-2 text-sm">
-                            <span className="text-primary font-bold">
-                              {item.qty}x
+                          <div key={idx} className="flex flex-wrap justify-between gap-2 text-xs sm:text-sm">
+                            <span className="flex items-center gap-1">
+                              <span className="text-primary font-bold">{item.qty}x</span>
+                              <span className="wrap-break-word">{item.name}</span>
                             </span>
-                            <span>{item.name}</span>
-                            <span className="ml-auto text-gray-500">
-                              R${" "}
-                              {(item.price * item.qty)
-                                .toFixed(2)
-                                .replace(".", ",")}
+                            <span className="text-gray-500 whitespace-nowrap">
+                              R$ {(item.price * item.qty).toFixed(2).replace(".", ",")}
                             </span>
                           </div>
                         ))}
                       </div>
                     </div>
-                    <div className="mt-4 flex gap-2 border-t border-gray-200 pt-3">
+                    <div className="mt-4 flex flex-col sm:flex-row gap-2 border-t border-gray-200 pt-3">
                       <button
-                        onClick={() =>
-                          updateStatus(order.payment_id, "preparing")
-                        }
-                        className="flex-1 cursor-pointer rounded-lg bg-blue-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
+                        onClick={() => updateStatus(order.payment_id, "preparing")}
+                        className="flex-1 cursor-pointer rounded-lg bg-blue-600 px-3 py-2 text-xs sm:text-sm font-bold text-white transition hover:bg-blue-700"
                       >
                         PREPARAR
                       </button>
                       <button
                         onClick={() => handleCancelClick(order.payment_id)}
-                        className="flex-1 cursor-pointer rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-red-700"
+                        className="flex-1 cursor-pointer rounded-lg bg-red-600 px-3 py-2 text-xs sm:text-sm font-bold text-white transition hover:bg-red-700"
                       >
                         CANCELAR
                       </button>
@@ -483,53 +546,48 @@ export default function AdminPedidosPage() {
                     className={`flex h-full flex-col rounded-lg border bg-white p-4 shadow-sm ${getBorderColor(waitTime)}`}
                   >
                     <div className="flex-1">
-                      <div className="mb-2 flex items-start justify-between">
-                        <div>
-                          <span className="text-xl font-bold">
+                      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-base sm:text-xl font-bold">
                             #{order.payment_id.slice(-6)}
                           </span>
                           <span
-                            className={`ml-2 text-xs font-bold ${getTimeColor(waitTime)}`}
+                            className={`text-xs font-bold ${getTimeColor(waitTime)}`}
                           >
                             {waitTime} min
                           </span>
                         </div>
-                        <div className="text-primary text-xl font-bold">
+                        <div className="text-primary text-base sm:text-xl font-bold">
                           R$ {order.total.toFixed(2).replace(".", ",")}
                         </div>
                       </div>
-                      <div className="mb-2 text-base font-semibold text-gray-800">
+                      <div className="mb-2 text-sm sm:text-base font-semibold text-gray-800 wrap-break-word">
                         {order.customer_name}
                       </div>
                       <div className="mb-3 space-y-1 text-gray-700">
                         {items.map((item, idx) => (
-                          <div key={idx} className="flex gap-2 text-sm">
-                            <span className="text-primary font-bold">
-                              {item.qty}x
+                          <div key={idx} className="flex flex-wrap justify-between gap-2 text-xs sm:text-sm">
+                            <span className="flex items-center gap-1">
+                              <span className="text-primary font-bold">{item.qty}x</span>
+                              <span className="wrap-break-word">{item.name}</span>
                             </span>
-                            <span>{item.name}</span>
-                            <span className="ml-auto text-gray-500">
-                              R${" "}
-                              {(item.price * item.qty)
-                                .toFixed(2)
-                                .replace(".", ",")}
+                            <span className="text-gray-500 whitespace-nowrap">
+                              R$ {(item.price * item.qty).toFixed(2).replace(".", ",")}
                             </span>
                           </div>
                         ))}
                       </div>
                     </div>
-                    <div className="mt-4 flex gap-2 border-t border-gray-200 pt-3">
+                    <div className="mt-4 flex flex-col sm:flex-row gap-2 border-t border-gray-200 pt-3">
                       <button
-                        onClick={() =>
-                          updateStatus(order.payment_id, "delivering")
-                        }
-                        className="flex-1 cursor-pointer rounded-lg bg-purple-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-purple-700"
+                        onClick={() => updateStatus(order.payment_id, "delivering")}
+                        className="flex-1 cursor-pointer rounded-lg bg-purple-600 px-3 py-2 text-xs sm:text-sm font-bold text-white transition hover:bg-purple-700"
                       >
                         A CAMINHO
                       </button>
                       <button
                         onClick={() => handleCancelClick(order.payment_id)}
-                        className="flex-1 cursor-pointer rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-red-700"
+                        className="flex-1 cursor-pointer rounded-lg bg-red-600 px-3 py-2 text-xs sm:text-sm font-bold text-white transition hover:bg-red-700"
                       >
                         CANCELAR
                       </button>
@@ -562,36 +620,33 @@ export default function AdminPedidosPage() {
                     className={`flex h-full flex-col rounded-lg border bg-white p-4 shadow-sm ${getBorderColor(waitTime)}`}
                   >
                     <div className="flex-1">
-                      <div className="mb-2 flex items-start justify-between">
-                        <div>
-                          <span className="text-xl font-bold">
+                      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-base sm:text-xl font-bold">
                             #{order.payment_id.slice(-6)}
                           </span>
                           <span
-                            className={`ml-2 text-xs font-bold ${getTimeColor(waitTime)}`}
+                            className={`text-xs font-bold ${getTimeColor(waitTime)}`}
                           >
                             {waitTime} min
                           </span>
                         </div>
-                        <div className="text-primary text-xl font-bold">
+                        <div className="text-primary text-base sm:text-xl font-bold">
                           R$ {order.total.toFixed(2).replace(".", ",")}
                         </div>
                       </div>
-                      <div className="mb-2 text-base font-semibold text-gray-800">
+                      <div className="mb-2 text-sm sm:text-base font-semibold text-gray-800 wrap-break-word">
                         {order.customer_name}
                       </div>
                       <div className="mb-3 space-y-1 text-gray-700">
                         {items.map((item, idx) => (
-                          <div key={idx} className="flex gap-2 text-sm">
-                            <span className="text-primary font-bold">
-                              {item.qty}x
+                          <div key={idx} className="flex flex-wrap justify-between gap-2 text-xs sm:text-sm">
+                            <span className="flex items-center gap-1">
+                              <span className="text-primary font-bold">{item.qty}x</span>
+                              <span className="wrap-break-word">{item.name}</span>
                             </span>
-                            <span>{item.name}</span>
-                            <span className="ml-auto text-gray-500">
-                              R${" "}
-                              {(item.price * item.qty)
-                                .toFixed(2)
-                                .replace(".", ",")}
+                            <span className="text-gray-500 whitespace-nowrap">
+                              R$ {(item.price * item.qty).toFixed(2).replace(".", ",")}
                             </span>
                           </div>
                         ))}
@@ -602,25 +657,23 @@ export default function AdminPedidosPage() {
                             href={order.lalamoveShareLink}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs break-all text-blue-600 underline"
+                            className="text-xs wrap-break-word text-blue-600 underline"
                           >
                             Rastrear pedido
                           </a>
                         </div>
                       )}
                     </div>
-                    <div className="mt-4 flex gap-2 border-t border-gray-200 pt-3">
+                    <div className="mt-4 flex flex-col sm:flex-row gap-2 border-t border-gray-200 pt-3">
                       <button
-                        onClick={() =>
-                          updateStatus(order.payment_id, "delivered")
-                        }
-                        className="flex-1 cursor-pointer rounded-lg bg-green-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-green-700"
+                        onClick={() => updateStatus(order.payment_id, "delivered")}
+                        className="flex-1 cursor-pointer rounded-lg bg-green-600 px-3 py-2 text-xs sm:text-sm font-bold text-white transition hover:bg-green-700"
                       >
                         ENTREGUE
                       </button>
                       <button
                         onClick={() => handleCancelClick(order.payment_id)}
-                        className="flex-1 cursor-pointer rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-red-700"
+                        className="flex-1 cursor-pointer rounded-lg bg-red-600 px-3 py-2 text-xs sm:text-sm font-bold text-white transition hover:bg-red-700"
                       >
                         CANCELAR
                       </button>
@@ -652,31 +705,28 @@ export default function AdminPedidosPage() {
                     className="flex h-full flex-col rounded-lg border border-green-200 bg-white p-4 shadow-sm"
                   >
                     <div className="flex-1">
-                      <div className="mb-2 flex items-start justify-between">
+                      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
                         <div>
-                          <span className="text-xl font-bold">
+                          <span className="text-base sm:text-xl font-bold">
                             #{order.payment_id.slice(-6)}
                           </span>
                         </div>
-                        <div className="text-primary text-xl font-bold">
+                        <div className="text-primary text-base sm:text-xl font-bold">
                           R$ {order.total.toFixed(2).replace(".", ",")}
                         </div>
                       </div>
-                      <div className="mb-2 text-base font-semibold text-gray-800">
+                      <div className="mb-2 text-sm sm:text-base font-semibold text-gray-800 wrap-break-word">
                         {order.customer_name}
                       </div>
                       <div className="mb-3 space-y-1 text-gray-700">
                         {items.map((item, idx) => (
-                          <div key={idx} className="flex gap-2 text-sm">
-                            <span className="text-primary font-bold">
-                              {item.qty}x
+                          <div key={idx} className="flex flex-wrap justify-between gap-2 text-xs sm:text-sm">
+                            <span className="flex items-center gap-1">
+                              <span className="text-primary font-bold">{item.qty}x</span>
+                              <span className="wrap-break-word">{item.name}</span>
                             </span>
-                            <span>{item.name}</span>
-                            <span className="ml-auto text-gray-500">
-                              R${" "}
-                              {(item.price * item.qty)
-                                .toFixed(2)
-                                .replace(".", ",")}
+                            <span className="text-gray-500 whitespace-nowrap">
+                              R$ {(item.price * item.qty).toFixed(2).replace(".", ",")}
                             </span>
                           </div>
                         ))}
@@ -684,7 +734,7 @@ export default function AdminPedidosPage() {
                     </div>
                     <div className="mt-4 border-t border-gray-200 pt-3">
                       <button
-                        className="w-full cursor-not-allowed rounded-lg bg-gray-400 px-3 py-2 text-sm font-bold text-white opacity-60"
+                        className="w-full cursor-not-allowed rounded-lg bg-gray-400 px-3 py-2 text-xs sm:text-sm font-bold text-white opacity-60"
                         disabled
                       >
                         ENTREGUE
@@ -717,20 +767,20 @@ export default function AdminPedidosPage() {
                       key={order.payment_id}
                       className="rounded-lg border border-gray-300 bg-gray-200 p-4"
                     >
-                      <div className="mb-2 flex items-start justify-between">
+                      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
                         <div>
-                          <span className="text-xl font-bold">
+                          <span className="text-base sm:text-xl font-bold">
                             #{order.payment_id.slice(-6)}
                           </span>
                         </div>
-                        <div className="text-xl font-bold text-gray-600">
+                        <div className="text-base sm:text-xl font-bold text-gray-600">
                           R$ {order.total.toFixed(2).replace(".", ",")}
                         </div>
                       </div>
-                      <div className="mb-2 text-base font-semibold text-gray-700">
+                      <div className="mb-2 text-sm sm:text-base font-semibold text-gray-700 wrap-break-word">
                         {order.customer_name}
                       </div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-xs sm:text-sm text-gray-600">
                         {items.map((item, idx) => (
                           <span key={idx} className="mr-2 inline">
                             {item.qty}x {item.name}
