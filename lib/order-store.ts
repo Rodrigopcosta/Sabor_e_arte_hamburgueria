@@ -14,7 +14,7 @@ export interface OrderData {
   recipientStopId: string
   lalamoveOrderId?: string
   lalamoveShareLink?: string
-  orderStatus: "paid" | "preparing" | "delivering" | "delivered" | "cancelled"
+  orderStatus: "paid" | "pending" | "preparing" | "delivering" | "delivered" | "cancelled"
   createdAt?: string
 }
 

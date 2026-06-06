@@ -49,11 +49,11 @@ export async function POST(request: NextRequest) {
 
     const totalAmount = parseFloat(
       (
-        items.reduce((s, i) => s + i.price * i.quantity, 0) + deliveryFee
+        items.reduce((s: number, i: Item) => s + i.price * i.quantity, 0) + deliveryFee
       ).toFixed(2)
     )
     const itemsSerialized = items
-      .map((i) => `${i.quantity}:${i.name}:${i.price.toFixed(2)}`)
+      .map((i: Item) => `${i.quantity}:${i.name}:${i.price.toFixed(2)}`)
       .join(";")
 
     const {
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     const payload = {
       ...brickFields,
       transaction_amount: totalAmount,
-      description: items.map((i) => `${i.quantity}x ${i.name}`).join(" | "),
+      description: items.map((i: Item) => `${i.quantity}x ${i.name}`).join(" | "),
       statement_descriptor: "SABOR E ARTE",
       payer: {
         email: payer.email,
@@ -113,7 +113,6 @@ export async function POST(request: NextRequest) {
     console.log("💳 [process-payment] Enviando para /v1/payments")
     console.log("   payment_method_id:", safeFormData.payment_method_id)
     console.log("   transaction_amount:", totalAmount)
-    console.log("   payload completo:", JSON.stringify(payload, null, 2))
 
     const mpRes = await fetch("https://api.mercadopago.com/v1/payments", {
       method: "POST",
@@ -142,12 +141,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const paymentTypeId = String(payment.payment_type_id || "")
+    const paymentMethodId = String(payment.payment_method_id || "")
+    const isPix =
+      paymentTypeId === "bank_transfer" ||
+      paymentMethodId === "pix" ||
+      Boolean(payment.point_of_interaction?.transaction_data?.qr_code)
+
     console.log(
-      `✅ [process-payment] id: ${payment.id} | status: ${payment.status} | type: ${payment.payment_type_id}`
+      `✅ [process-payment] id: ${payment.id} | status: ${payment.status} | type: ${paymentTypeId} | method: ${paymentMethodId} | isPix: ${isPix}`
     )
 
-    // Função para salvar no orderStore
-    const saveToOrderStore = () => {
+    // 🔥 CORREÇÃO: Função que recebe o status como parâmetro
+    const saveToOrderStore = (status: "paid" | "pending") => {
       const orderData = {
         paymentId: String(payment.id),
         customerName: payer.name,
@@ -159,23 +165,26 @@ export async function POST(request: NextRequest) {
         quotationId,
         senderStopId,
         recipientStopId,
-        orderStatus: "paid" as const,
+        orderStatus: status,
+        createdAt: new Date().toISOString(),
       }
       orderStore.set(String(payment.id), orderData)
       console.log(
-        `✅ [process-payment] Pedido ${payment.id} salvo diretamente no orderStore`
+        `✅ [process-payment] Pedido ${payment.id} salvo com status ${status}`
       )
     }
 
     // ── Pix: bank_transfer ou payment_method_id === "pix" ───────────────────
-    const isPix =
-      payment.payment_type_id === "bank_transfer" ||
-      payment.payment_method_id === "pix"
-
     if (isPix) {
-      saveToOrderStore()
+      // ✅ Salva como "pending" (não pago ainda!)
+      saveToOrderStore("pending")
       const txData = payment.point_of_interaction?.transaction_data
-      console.log("🔑 [process-payment] Pix qr_code gerado:", !!txData?.qr_code)
+      console.log(
+        "🔑 [process-payment] Pix detectado, gravando como pending | qr_code:",
+        !!txData?.qr_code,
+        "qr_code_base64:",
+        !!txData?.qr_code_base64
+      )
       return NextResponse.json({
         status: "pending",
         paymentId: String(payment.id),
@@ -188,7 +197,8 @@ export async function POST(request: NextRequest) {
 
     // ── Cartão aprovado ──────────────────────────────────────────────────────
     if (payment.status === "approved") {
-      saveToOrderStore()
+      // ✅ Salva como "paid"
+      saveToOrderStore("paid")
       triggerConfirm({
         paymentId: String(payment.id),
         quotationId,
@@ -209,7 +219,8 @@ export async function POST(request: NextRequest) {
 
     // ── Cartão em análise (in_process) ───────────────────────────────────────
     if (payment.status === "in_process") {
-      saveToOrderStore()
+      // ✅ Salva como "pending"
+      saveToOrderStore("pending")
       return NextResponse.json({
         status: "pending",
         paymentId: String(payment.id),
