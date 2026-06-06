@@ -67,7 +67,8 @@ export async function getOrder(paymentId: string): Promise<OrderData | null> {
           recipient_stop_id as "recipientStopId",
           lalamove_order_id as "lalamoveOrderId",
           share_link as "lalamoveShareLink",
-          order_status as "orderStatus"
+          order_status as "orderStatus",
+          created_at as "createdAt"
         FROM orders 
         WHERE payment_id = ${paymentId}
       `
@@ -85,7 +86,6 @@ export async function setOrder(
   paymentId: string,
   orderData: OrderData
 ): Promise<void> {
-  // FIX: garante createdAt sempre preenchido na memória
   const dataWithCreatedAt: OrderData = {
     ...orderData,
     createdAt: orderData.createdAt || new Date().toISOString(),
@@ -125,7 +125,7 @@ export async function setOrder(
           ${dataWithCreatedAt.lalamoveOrderId || null},
           ${dataWithCreatedAt.lalamoveShareLink || null},
           ${dataWithCreatedAt.orderStatus},
-          NOW()
+          NOW() AT TIME ZONE 'America/Sao_Paulo'
         )
         ON CONFLICT (payment_id) DO UPDATE SET
           customer_name = EXCLUDED.customer_name,
@@ -140,7 +140,7 @@ export async function setOrder(
           lalamove_order_id = EXCLUDED.lalamove_order_id,
           share_link = EXCLUDED.share_link,
           order_status = EXCLUDED.order_status,
-          updated_at = NOW()
+          updated_at = NOW() AT TIME ZONE 'America/Sao_Paulo'
       `
       console.log(`✅ [setOrder] Pedido ${paymentId} salvo no Neon`)
     } catch (error) {
@@ -162,7 +162,7 @@ export async function updateOrderStatus(
     try {
       await sql`
         UPDATE orders 
-        SET order_status = ${status}, updated_at = NOW()
+        SET order_status = ${status}, updated_at = NOW() AT TIME ZONE 'America/Sao_Paulo'
         WHERE payment_id = ${paymentId}
       `
       console.log(`✅ [updateOrderStatus] Pedido ${paymentId} -> ${status}`)
@@ -195,7 +195,7 @@ export async function updateLalamoveInfo(
           lalamove_order_id = ${lalamoveOrderId},
           share_link = ${shareLink},
           order_status = 'delivering',
-          updated_at = NOW()
+          updated_at = NOW() AT TIME ZONE 'America/Sao_Paulo'
         WHERE payment_id = ${paymentId}
       `
       console.log(
@@ -210,7 +210,6 @@ export async function updateLalamoveInfo(
 export const orderStore = {
   get: (paymentId: string) => memoryStore.get(paymentId),
   set: (paymentId: string, data: OrderData) => {
-    // FIX: garante createdAt também no set síncrono
     const dataWithCreatedAt: OrderData = {
       ...data,
       createdAt: data.createdAt || new Date().toISOString(),

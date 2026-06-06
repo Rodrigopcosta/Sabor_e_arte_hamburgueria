@@ -18,7 +18,6 @@ export function Header() {
   useEffect(() => {
     const updateStatus = () => {
       const status = getRealStoreStatus()
-      // console.log("🏪 [Header] Status da loja:", status) // Para debug
       setStoreStatus({
         open: status.isOpen,
         message: status.message,
@@ -47,7 +46,6 @@ export function Header() {
                 height={48}
                 className="border-primary/20 rounded-full border-2"
               />
-              {/* Bolinha de status - usando div em vez de ícone para garantir a cor */}
               <div
                 className={`absolute -right-0.5 -bottom-0.5 h-3.5 w-3.5 rounded-full ${
                   storeStatus.open ? "animate-pulse bg-green-500" : "bg-red-600"
@@ -58,7 +56,6 @@ export function Header() {
               <span className="text-xl leading-none font-black tracking-tighter text-white uppercase italic">
                 Sabor <span className="text-primary not-italic">e</span> Arte
               </span>
-              {/* Texto de status - visível apenas no desktop */}
               <div className="mt-1 hidden items-center gap-1.5 sm:flex">
                 <div
                   className={`h-2 w-2 rounded-full ${
@@ -81,12 +78,14 @@ export function Header() {
           {/* LADO DIREITO: NAV E CARRINHO */}
           <div className="flex items-center gap-2 sm:gap-6">
             <nav className="hidden items-center gap-6 md:flex">
-              {["Home", "Cardápio", "Sobre", "Contato"].map((item) => (
+              {["Home", "Cardápio", "Meus Pedidos", "Sobre", "Contato"].map((item) => (
                 <Link
                   key={item}
                   href={
                     item === "Home"
                       ? "/"
+                      : item === "Meus Pedidos"
+                      ? "/historico"
                       : `/${item
                           .toLowerCase()
                           .normalize("NFD")
@@ -130,12 +129,14 @@ export function Header() {
         {mobileMenuOpen && (
           <nav className="animate-in slide-in-from-right fixed inset-0 top-18 z-40 h-screen bg-[#120f0e] px-8 py-10 duration-300 md:hidden">
             <div className="flex flex-col gap-8">
-              {["Home", "Cardápio", "Sobre", "Contato"].map((item) => (
+              {["Home", "Cardápio", "Meus Pedidos", "Sobre", "Contato"].map((item) => (
                 <Link
                   key={item}
                   href={
                     item === "Home"
                       ? "/"
+                      : item === "Meus Pedidos"
+                      ? "/historico"
                       : `/${item
                           .toLowerCase()
                           .normalize("NFD")
