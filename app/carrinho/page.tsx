@@ -33,14 +33,11 @@ export default function CarrinhoPage() {
 
   const [step, setStep] = useState<"cart" | "details" | "payment">("cart")
 
-  // Frete e cotação: sempre começam nulos, nunca restaurados do localStorage.
-  // O usuário deve preencher o endereço novamente para recalcular.
   const [deliveryFee, setDeliveryFee] = useState<number | null>(null)
   const [quotationId, setQuotationId] = useState<string | null>(null)
   const [senderStopId, setSenderStopId] = useState<string | null>(null)
   const [recipientStopId, setRecipientStopId] = useState<string | null>(null)
 
-  // Dados do formulário: restaurados do localStorage (nome, telefone, email, endereço)
   const [formData, setFormData] = useState(() => {
     if (typeof window !== "undefined") {
       return {
@@ -76,15 +73,12 @@ export default function CarrinhoPage() {
     setIsHydrated(true)
   }, [])
 
-  // Limpa o flag insideCheckout ao sair da página (navegar para home, cardápio etc.)
   useEffect(() => {
     return () => {
       sessionStorage.removeItem("@SaborEArte:insideCheckout")
     }
   }, [])
 
-  // Restaura apenas o step "details" no F5.
-  // Frete NUNCA é restaurado — o usuário deve recalcular sempre.
   useEffect(() => {
     if (typeof window !== "undefined" && !isInitialized) {
       const savedStep = sessionStorage.getItem("@SaborEArte:checkoutStep")
@@ -94,12 +88,10 @@ export default function CarrinhoPage() {
       if (insideCheckout && savedStep === "details") {
         setStep("details")
       }
-      // Se estava em "payment", volta para "details" para recalcular o frete
       if (insideCheckout && savedStep === "payment") {
         setStep("details")
       }
 
-      // Sempre limpa frete do localStorage — deve ser recalculado
       localStorage.removeItem("@SaborEArte:deliveryFee")
       localStorage.removeItem("@SaborEArte:quotationId")
       localStorage.removeItem("@SaborEArte:senderStopId")
@@ -110,14 +102,12 @@ export default function CarrinhoPage() {
     }
   }, [isInitialized])
 
-  // Salva o step no sessionStorage
   useEffect(() => {
     if (step && isInitialized) {
       sessionStorage.setItem("@SaborEArte:checkoutStep", step)
     }
   }, [step, isInitialized])
 
-  // Persiste dados do formulário
   useEffect(() => {
     localStorage.setItem("@SaborEArte:customerName", formData.name)
     localStorage.setItem("@SaborEArte:customerPhone", formData.phone)
@@ -125,7 +115,6 @@ export default function CarrinhoPage() {
     localStorage.setItem("@SaborEArte:customerAddress", formData.address)
   }, [formData])
 
-  // Persiste cupom
   useEffect(() => {
     localStorage.setItem(
       "@SaborEArte:appliedCoupon",
@@ -137,7 +126,6 @@ export default function CarrinhoPage() {
     )
   }, [appliedCoupon, couponDiscount])
 
-  // Verifica status da loja
   useEffect(() => {
     const checkStatus = () => {
       const status = getStoreStatusMessage()
@@ -149,7 +137,6 @@ export default function CarrinhoPage() {
     return () => clearInterval(interval)
   }, [])
 
-  // Limpa frete e cotação quando o carrinho está vazio
   useEffect(() => {
     if (isHydrated && items.length === 0) {
       setDeliveryFee(null)
@@ -163,7 +150,6 @@ export default function CarrinhoPage() {
     }
   }, [isHydrated, items.length])
 
-  // Redireciona para o cardápio se o carrinho estiver vazio
   useEffect(() => {
     if (isHydrated && items.length === 0 && step !== "payment") {
       router.push("/cardapio#combos")
@@ -205,8 +191,12 @@ export default function CarrinhoPage() {
     pid?: string
   ) => {
     if (pid) {
-      localStorage.setItem("@SaborEArte:lastPaymentId", pid)
-      router.push(`/confirmacao?paymentId=${pid}`)
+      // ✅ Só salva no localStorage e redireciona se for cartão aprovado
+      if (status === "approved") {
+        localStorage.setItem("@SaborEArte:lastPaymentId", pid)
+        router.push(`/confirmacao?paymentId=${pid}`)
+      }
+      // Para Pix (pending), NÃO salva no localStorage e NÃO redireciona
     }
     clearCart()
     sessionStorage.removeItem("@SaborEArte:checkoutStep")
@@ -227,11 +217,9 @@ export default function CarrinhoPage() {
   }
 
   const handleStepChange = (newStep: "cart" | "details" | "payment") => {
-    // Sempre que sair da tela de detalhes (para qualquer direção), limpa frete e endereço
     if (step === "details" && newStep === "cart") {
       clearDelivery()
     }
-    // Ao voltar de payment para details, limpa frete e endereço para forçar novo cálculo
     if (step === "payment" && newStep === "details") {
       clearDelivery()
     }

@@ -19,19 +19,38 @@ export default function ConfirmacaoPage() {
     const searchId = new URLSearchParams(window.location.search).get(
       "paymentId"
     )
-    if (searchId) {
-      setPaymentId(searchId)
+    const savedPaymentId =
+      searchId || localStorage.getItem("@SaborEArte:lastPaymentId")
+
+    if (!savedPaymentId) {
       setLoading(false)
       return
     }
 
-    const savedPaymentId = localStorage.getItem("@SaborEArte:lastPaymentId")
-    if (savedPaymentId) {
-      router.replace(`/confirmacao?paymentId=${savedPaymentId}`)
-      return
+    const fetchOrderStatus = async () => {
+      try {
+        const res = await fetch(`/api/pedido?paymentId=${savedPaymentId}`)
+        const data = await res.json()
+
+        if (!res.ok || data.status === "not_found") {
+          setLoading(false)
+          return
+        }
+
+        if (data.status === "pending") {
+          router.replace(`/pedido/pendente?payment_id=${savedPaymentId}`)
+          return
+        }
+
+        setPaymentId(savedPaymentId)
+        setLoading(false)
+      } catch (err) {
+        console.error("❌ [Confirmacao] Erro ao buscar status do pedido:", err)
+        setLoading(false)
+      }
     }
 
-    setLoading(false)
+    fetchOrderStatus()
   }, [router])
 
   if (loading) {
