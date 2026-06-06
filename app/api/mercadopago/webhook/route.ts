@@ -11,9 +11,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    // Ignora callbacks do Telegram (tratados em /api/lalamove)
-    if (body.callback_query) return NextResponse.json({ ok: true })
-
     // Extrai paymentId do payload do MP
     let paymentId: string | null = null
 
@@ -53,7 +50,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Aciona /confirm — salva no store, envia Telegram
+    // Aciona /confirm — salva no store
     await fetch(`${BASE_URL}/api/mercadopago/confirm`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { orderStore } from "@/lib/order-store"
 
 const MP_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN || ""
 const BASE_URL =
@@ -55,8 +56,6 @@ export async function POST(request: NextRequest) {
       .map((i) => `${i.quantity}:${i.name}:${i.price.toFixed(2)}`)
       .join(";")
 
-    // Remove campos internos do Brick que a API do MP não aceita
-
     const {
       entityType: _et,
       amount: _amt,
@@ -68,7 +67,6 @@ export async function POST(request: NextRequest) {
       payer?: unknown
     }
 
-    // Campos que o Brick envia e a API aceita diretamente
     const brickFields: Record<string, unknown> = {}
     const ALLOWED = [
       "token",
@@ -138,7 +136,6 @@ export async function POST(request: NextRequest) {
         payment?.cause?.[0]?.description ||
         payment?.message ||
         "Erro ao processar pagamento"
-      // Retorna detalhes completos para debug no front
       return NextResponse.json(
         { error: msg, detail: payment },
         { status: mpRes.status }
@@ -149,12 +146,34 @@ export async function POST(request: NextRequest) {
       `✅ [process-payment] id: ${payment.id} | status: ${payment.status} | type: ${payment.payment_type_id}`
     )
 
+    // Função para salvar no orderStore
+    const saveToOrderStore = () => {
+      const orderData = {
+        paymentId: String(payment.id),
+        customerName: payer.name,
+        customerPhone: payer.phone,
+        deliveryAddress: payer.address,
+        itemsSerialized: itemsSerialized,
+        deliveryFee: deliveryFee.toFixed(2),
+        total: totalAmount.toFixed(2),
+        quotationId,
+        senderStopId,
+        recipientStopId,
+        orderStatus: "paid" as const,
+      }
+      orderStore.set(String(payment.id), orderData)
+      console.log(
+        `✅ [process-payment] Pedido ${payment.id} salvo diretamente no orderStore`
+      )
+    }
+
     // ── Pix: bank_transfer ou payment_method_id === "pix" ───────────────────
     const isPix =
       payment.payment_type_id === "bank_transfer" ||
       payment.payment_method_id === "pix"
 
     if (isPix) {
+      saveToOrderStore()
       const txData = payment.point_of_interaction?.transaction_data
       console.log("🔑 [process-payment] Pix qr_code gerado:", !!txData?.qr_code)
       return NextResponse.json({
@@ -169,6 +188,7 @@ export async function POST(request: NextRequest) {
 
     // ── Cartão aprovado ──────────────────────────────────────────────────────
     if (payment.status === "approved") {
+      saveToOrderStore()
       triggerConfirm({
         paymentId: String(payment.id),
         quotationId,
@@ -189,6 +209,7 @@ export async function POST(request: NextRequest) {
 
     // ── Cartão em análise (in_process) ───────────────────────────────────────
     if (payment.status === "in_process") {
+      saveToOrderStore()
       return NextResponse.json({
         status: "pending",
         paymentId: String(payment.id),

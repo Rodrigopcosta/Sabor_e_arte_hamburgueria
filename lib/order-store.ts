@@ -15,9 +15,9 @@ export interface OrderData {
   lalamoveOrderId?: string
   lalamoveShareLink?: string
   orderStatus: "paid" | "preparing" | "delivering" | "delivered" | "cancelled"
+  createdAt?: string
 }
 
-// Conexão com Neon (se DATABASE_URL estiver configurada)
 let sql: any = null
 let useDatabase = false
 
@@ -34,7 +34,6 @@ if (typeof process !== "undefined" && process.env.DATABASE_URL) {
   console.log("📝 [order-store] DATABASE_URL não configurada, usando memória")
 }
 
-// Fallback em memória (globalThis)
 declare global {
   var __orderStore: Map<string, OrderData> | undefined
 }
@@ -45,12 +44,7 @@ if (!globalThis.__orderStore) {
 
 const memoryStore = globalThis.__orderStore
 
-// ============================================
-// FUNÇÕES PRINCIPAIS
-// ============================================
-
 export async function getOrder(paymentId: string): Promise<OrderData | null> {
-  // Tenta banco de dados primeiro
   if (useDatabase && sql) {
     try {
       const result = await sql`
@@ -71,7 +65,6 @@ export async function getOrder(paymentId: string): Promise<OrderData | null> {
         FROM orders 
         WHERE payment_id = ${paymentId}
       `
-
       if (result && result.length > 0) {
         return result[0] as OrderData
       }
@@ -79,8 +72,6 @@ export async function getOrder(paymentId: string): Promise<OrderData | null> {
       console.error("❌ [getOrder] Erro no Neon:", error)
     }
   }
-
-  // Fallback para memória
   return memoryStore.get(paymentId) || null
 }
 
@@ -88,10 +79,14 @@ export async function setOrder(
   paymentId: string,
   orderData: OrderData
 ): Promise<void> {
-  // Salva na memória primeiro (sempre)
-  memoryStore.set(paymentId, orderData)
+  // FIX: garante createdAt sempre preenchido na memória
+  const dataWithCreatedAt: OrderData = {
+    ...orderData,
+    createdAt: orderData.createdAt || new Date().toISOString(),
+  }
 
-  // Tenta salvar no banco também
+  memoryStore.set(paymentId, dataWithCreatedAt)
+
   if (useDatabase && sql) {
     try {
       await sql`
@@ -108,21 +103,23 @@ export async function setOrder(
           recipient_stop_id,
           lalamove_order_id,
           share_link,
-          order_status
+          order_status,
+          created_at
         ) VALUES (
           ${paymentId},
-          ${orderData.customerName},
-          ${orderData.customerPhone},
-          ${orderData.deliveryAddress},
-          ${orderData.itemsSerialized},
-          ${orderData.deliveryFee},
-          ${orderData.total},
-          ${orderData.quotationId},
-          ${orderData.senderStopId},
-          ${orderData.recipientStopId},
-          ${orderData.lalamoveOrderId || null},
-          ${orderData.lalamoveShareLink || null},
-          ${orderData.orderStatus}
+          ${dataWithCreatedAt.customerName},
+          ${dataWithCreatedAt.customerPhone},
+          ${dataWithCreatedAt.deliveryAddress},
+          ${dataWithCreatedAt.itemsSerialized},
+          ${dataWithCreatedAt.deliveryFee},
+          ${dataWithCreatedAt.total},
+          ${dataWithCreatedAt.quotationId},
+          ${dataWithCreatedAt.senderStopId},
+          ${dataWithCreatedAt.recipientStopId},
+          ${dataWithCreatedAt.lalamoveOrderId || null},
+          ${dataWithCreatedAt.lalamoveShareLink || null},
+          ${dataWithCreatedAt.orderStatus},
+          NOW()
         )
         ON CONFLICT (payment_id) DO UPDATE SET
           customer_name = EXCLUDED.customer_name,
@@ -150,13 +147,11 @@ export async function updateOrderStatus(
   paymentId: string,
   status: OrderData["orderStatus"]
 ): Promise<void> {
-  // Atualiza memória
   const order = memoryStore.get(paymentId)
   if (order) {
     memoryStore.set(paymentId, { ...order, orderStatus: status })
   }
 
-  // Atualiza banco
   if (useDatabase && sql) {
     try {
       await sql`
@@ -176,7 +171,6 @@ export async function updateLalamoveInfo(
   lalamoveOrderId: string,
   shareLink: string
 ): Promise<void> {
-  // Atualiza memória
   const order = memoryStore.get(paymentId)
   if (order) {
     memoryStore.set(paymentId, {
@@ -187,7 +181,6 @@ export async function updateLalamoveInfo(
     })
   }
 
-  // Atualiza banco
   if (useDatabase && sql) {
     try {
       await sql`
@@ -208,14 +201,16 @@ export async function updateLalamoveInfo(
   }
 }
 
-// Mantém compatibilidade síncrona para partes do código que ainda usam ordemStore diretamente
-// (use apenas para leitura, para escrita use as funções async acima)
 export const orderStore = {
   get: (paymentId: string) => memoryStore.get(paymentId),
   set: (paymentId: string, data: OrderData) => {
-    memoryStore.set(paymentId, data)
-    // Dispara salvamento assíncrono sem esperar
-    setOrder(paymentId, data).catch(console.error)
+    // FIX: garante createdAt também no set síncrono
+    const dataWithCreatedAt: OrderData = {
+      ...data,
+      createdAt: data.createdAt || new Date().toISOString(),
+    }
+    memoryStore.set(paymentId, dataWithCreatedAt)
+    setOrder(paymentId, dataWithCreatedAt).catch(console.error)
   },
   delete: (paymentId: string) => memoryStore.delete(paymentId),
   entries: () => memoryStore.entries(),
