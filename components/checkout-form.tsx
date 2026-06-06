@@ -60,8 +60,8 @@ export function CheckoutForm({
   const [cepError, setCepError] = useState("")
   const [cepTouched, setCepTouched] = useState(false)
   const [cepFilled, setCepFilled] = useState(false)
-  const [numberConfirmed, setNumberConfirmed] = useState(false)
-  const debounceTimer = useRef<NodeJS.Timeout | null>(null)
+  const [addressReady, setAddressReady] = useState(false)
+  const [calculatingFreight, setCalculatingFreight] = useState(false)
   const lastCalculatedAddress = useRef<string>("")
 
   const [addressFields, setAddressFields] =
@@ -75,6 +75,7 @@ export function CheckoutForm({
   const clearFreight = () => {
     setFormData((prev) => ({ ...prev, address: "" }))
     lastCalculatedAddress.current = ""
+    setAddressReady(false)
     onAddressComplete(0, "", "", "")
   }
 
@@ -130,7 +131,7 @@ export function CheckoutForm({
         noNumber: false,
       }))
       setCepFilled(true)
-      setNumberConfirmed(false)
+      setAddressReady(false)
       clearFreight()
 
       setTimeout(() => {
@@ -153,24 +154,21 @@ export function CheckoutForm({
 
     setAddressFields({ ...emptyAddress, cep: value })
     setCepFilled(false)
-    setNumberConfirmed(false)
+    setAddressReady(false)
     setCepTouched(true)
     clearFreight()
 
-    // Limpa erro se apagou tudo
     if (raw.length === 0) {
       setCepError("")
       setCepTouched(false)
       return
     }
 
-    // CEP incompleto: mostra erro visual mas não bloqueia digitação
     if (raw.length < 8) {
-      setCepError("") // erro só aparece no blur ou após tentar avançar
+      setCepError("")
       return
     }
 
-    // CEP completo: busca
     setCepError("")
     fetchCep(raw)
   }
@@ -185,70 +183,43 @@ export function CheckoutForm({
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     setAddressFields((prev) => ({ ...prev, number: value, noNumber: false }))
-    setNumberConfirmed(false)
+    setAddressReady(false)
     clearFreight()
-  }
-
-  const handleNumberBlur = () => {
-    if (addressFields.number.trim().length > 0) {
-      setNumberConfirmed(true)
-    }
   }
 
   const handleNoNumberToggle = () => {
     const next = !addressFields.noNumber
     setAddressFields((prev) => ({ ...prev, noNumber: next, number: "" }))
-    if (next) {
-      setNumberConfirmed(true)
-    } else {
-      setNumberConfirmed(false)
-      clearFreight()
+    setAddressReady(false)
+    clearFreight()
+    if (!next) {
       setTimeout(() => document.getElementById("number")?.focus(), 50)
     }
   }
 
   const handleComplementChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAddressFields((prev) => ({ ...prev, complement: e.target.value }))
+    setAddressReady(false)
+    clearFreight()
   }
 
-  // Dispara cálculo quando numberConfirmed vira true ou quando noNumber muda
-  useEffect(() => {
-    if (!numberConfirmed || !cepFilled) return
-
+  const handleCalculateFreight = () => {
     const fullAddress = buildAddress(addressFields)
-    if (!fullAddress || fullAddress === lastCalculatedAddress.current) return
-
-    setFormData((prev) => ({ ...prev, address: fullAddress }))
-
-    if (debounceTimer.current) clearTimeout(debounceTimer.current)
-    debounceTimer.current = setTimeout(() => {
-      fetchDeliveryFee(fullAddress)
-    }, 600)
-
-    return () => {
-      if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    if (!fullAddress) {
+      alert("Preencha o endereço completo antes de calcular o frete.")
+      return
     }
-  }, [numberConfirmed, addressFields.noNumber])
 
-  // Recalcula quando número muda após já confirmado
-  useEffect(() => {
-    if (!numberConfirmed || !cepFilled || addressFields.noNumber) return
-    if (!addressFields.number.trim()) return
-
-    const fullAddress = buildAddress(addressFields)
-    if (!fullAddress || fullAddress === lastCalculatedAddress.current) return
-
-    setFormData((prev) => ({ ...prev, address: fullAddress }))
-
-    if (debounceTimer.current) clearTimeout(debounceTimer.current)
-    debounceTimer.current = setTimeout(() => {
-      fetchDeliveryFee(fullAddress)
-    }, 1200)
-
-    return () => {
-      if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    const hasNumber = addressFields.noNumber || addressFields.number.trim()
+    if (!hasNumber) {
+      alert("Informe o número do endereço ou marque 'Sem número'.")
+      return
     }
-  }, [addressFields.number])
+
+    setCalculatingFreight(true)
+    setFormData((prev) => ({ ...prev, address: fullAddress }))
+    fetchDeliveryFee(fullAddress)
+  }
 
   const fetchDeliveryFee = async (address: string) => {
     setInternalLoading(true)
@@ -279,12 +250,17 @@ export function CheckoutForm({
           data.senderStopId ?? "",
           data.recipientStopId ?? ""
         )
+        setAddressReady(true)
+      } else {
+        alert("Não foi possível calcular o frete para este endereço.")
       }
     } catch (error) {
       console.error("❌ [CheckoutForm] Erro ao calcular frete:", error)
+      alert("Erro ao calcular frete. Tente novamente.")
     } finally {
       setInternalLoading(false)
       setIsCalculating(false)
+      setCalculatingFreight(false)
     }
   }
 
@@ -400,7 +376,6 @@ export function CheckoutForm({
                 </div>
               </div>
 
-              {/* Feedback em tempo real */}
               {cepIncomplete && !cepInvalid && (
                 <p className="text-destructive mt-1 ml-1 flex items-center gap-1 text-xs">
                   <span>⚠</span> CEP incompleto — faltam {8 - cepRaw.length}{" "}
@@ -422,7 +397,6 @@ export function CheckoutForm({
             {/* Campos após CEP válido */}
             {cepFilled && (
               <>
-                {/* Rua — somente leitura */}
                 <input
                   type="text"
                   value={addressFields.street}
@@ -432,7 +406,6 @@ export function CheckoutForm({
                   className={readonlyClass}
                 />
 
-                {/* Número + Complemento + toggle sem número */}
                 <div className="flex flex-col gap-2">
                   <div className="flex gap-3">
                     <div className="w-1/3">
@@ -445,7 +418,6 @@ export function CheckoutForm({
                           addressFields.noNumber ? "" : addressFields.number
                         }
                         onChange={handleNumberChange}
-                        onBlur={handleNumberBlur}
                         disabled={addressFields.noNumber}
                         placeholder={
                           addressFields.noNumber ? "S/N" : "Número *"
@@ -470,7 +442,6 @@ export function CheckoutForm({
                     </div>
                   </div>
 
-                  {/* Toggle sem número */}
                   <label className="flex cursor-pointer items-center gap-2 self-start select-none">
                     <div
                       onClick={handleNoNumberToggle}
@@ -494,7 +465,6 @@ export function CheckoutForm({
                   </label>
                 </div>
 
-                {/* Bairro — somente leitura */}
                 <input
                   type="text"
                   value={addressFields.neighborhood}
@@ -504,7 +474,6 @@ export function CheckoutForm({
                   className={readonlyClass}
                 />
 
-                {/* Cidade e Estado — somente leitura */}
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <div className="flex-1">
                     <input
@@ -527,6 +496,27 @@ export function CheckoutForm({
                     />
                   </div>
                 </div>
+
+                {/* Botão Calcular Frete */}
+                <button
+                  onClick={handleCalculateFreight}
+                  disabled={calculatingFreight || internalLoading}
+                  className="bg-primary text-primary-foreground mt-2 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg font-bold transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {calculatingFreight || internalLoading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Calculando frete...
+                    </>
+                  ) : addressReady ? (
+                    <>
+                      <span>✓</span>
+                      Frete calculado
+                    </>
+                  ) : (
+                    "Calcular Frete"
+                  )}
+                </button>
 
                 {internalLoading && (
                   <div className="flex items-center gap-2 text-xs text-amber-500">

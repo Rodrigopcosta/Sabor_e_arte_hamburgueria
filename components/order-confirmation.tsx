@@ -233,6 +233,18 @@ export function OrderConfirmation({
         )}
       </div>
 
+      {/* Número do pedido */}
+      {paymentId && (
+        <div className="-mt-2 text-center">
+          <span className="text-muted-foreground text-xs tracking-wider uppercase">
+            Pedido
+          </span>
+          <p className="text-primary font-mono text-lg font-bold">
+            #{paymentId.slice(-8)}
+          </p>
+        </div>
+      )}
+
       <div>
         <h2 className="text-foreground text-xl font-bold">{title}</h2>
         <p className="text-muted-foreground mt-1 text-sm">
@@ -308,6 +320,8 @@ export function OrderConfirmation({
 
         <Link
           href="/cardapio"
+          target="_blank"
+          rel="noopener noreferrer"
           className="text-primary text-sm font-medium hover:underline"
         >
           Fazer outro pedido
