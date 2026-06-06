@@ -401,9 +401,14 @@ export default function AdminPedidosPage() {
                     <div className="flex-1">
                       <div className="mb-2 flex items-start justify-between">
                         <div>
-                          <span className="text-xl font-bold">
+                          <a
+                            href={`/confirmacao?paymentId=${order.payment_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-primary text-xl font-bold transition hover:underline"
+                          >
                             #{order.payment_id.slice(-6)}
-                          </span>
+                          </a>
                           <span
                             className={`ml-2 text-xs font-bold ${getTimeColor(waitTime)}`}
                           >
