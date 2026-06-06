@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { setOrder, type OrderData } from "@/lib/order-store"
 import { msgPedidoConfirmado } from "@/lib/whatsapp-deeplink"
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
-
 // ─── Re-exportado para lalamove/route.ts ─────────────────────────────────────
 
 export function formatItems(itemsSerialized: string): string {
@@ -77,33 +74,7 @@ export async function POST(request: NextRequest) {
       `💰 *Total:* R$ ${total}\n\n` +
       `_Clique em "Preparar" para iniciar o preparo e avisar o cliente._`
 
-    const keyboard = [
-      [{ text: "👨🍳 Preparar Pedido", callback_data: `prepare_${paymentId}` }],
-      [
-        {
-          text: "❌ Cancelar Pedido",
-          callback_data: `cancel_order_${paymentId}`,
-        },
-      ],
-    ]
-
-    const res = await fetch(
-      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: TELEGRAM_CHAT_ID,
-          text: message,
-          parse_mode: "Markdown",
-          reply_markup: { inline_keyboard: keyboard },
-        }),
-      }
-    )
-
-    const tgResult = await res.json()
-    if (!res.ok) console.error("❌ [Confirm-TG] Erro:", tgResult)
-    else console.log("✅ [Confirm-TG] messageId:", tgResult.result?.message_id)
+    console.log(`✅ [Confirm] Pedido ${paymentId} salvo com sucesso`)
 
     return NextResponse.json({ received: true, status: "approved" })
   } catch (error) {
