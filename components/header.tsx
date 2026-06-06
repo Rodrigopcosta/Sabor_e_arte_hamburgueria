@@ -38,20 +38,13 @@ export function Header() {
             href="/"
             className="flex items-center gap-3 transition-transform hover:scale-105"
           >
-            <div className="relative">
-              <Image
-                src="/images/logo.jpg"
-                alt="Sabor e Arte"
-                width={48}
-                height={48}
-                className="border-primary/20 rounded-full border-2"
-              />
-              <div
-                className={`absolute -right-0.5 -bottom-0.5 h-3.5 w-3.5 rounded-full ${
-                  storeStatus.open ? "animate-pulse bg-green-500" : "bg-red-600"
-                }`}
-              />
-            </div>
+            <Image
+              src="/images/logo.jpg"
+              alt="Sabor e Arte"
+              width={48}
+              height={48}
+              className="border-primary/20 rounded-full border-2"
+            />
             <div className="flex flex-col">
               <span className="text-xl leading-none font-black tracking-tighter text-white uppercase italic">
                 Sabor <span className="text-primary not-italic">e</span> Arte
