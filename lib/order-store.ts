@@ -1,6 +1,8 @@
 // lib/order-store.ts
 import { neon } from "@neondatabase/serverless"
 
+export type DeliveryMode = "own" | "lalamove"
+
 export interface OrderData {
   paymentId: string
   customerName: string
@@ -12,6 +14,10 @@ export interface OrderData {
   quotationId: string
   senderStopId: string
   recipientStopId: string
+  deliveryMode?: DeliveryMode
+  driverName?: string
+  driverPhone?: string
+  driverPlate?: string
   lalamoveOrderId?: string
   lalamoveShareLink?: string
   orderStatus:

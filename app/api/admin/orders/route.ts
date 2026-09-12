@@ -1,8 +1,22 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { neon } from "@neondatabase/serverless"
+import { verifyToken } from "@/lib/auth"
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Verificar autenticação
+    const token = request.cookies.get("admin_token")?.value
+
+    if (!token) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
+    const payload = verifyToken(token)
+
+    if (!payload || payload.role !== "admin") {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const sql = neon(process.env.DATABASE_URL!)
 
     const orders = await sql`
