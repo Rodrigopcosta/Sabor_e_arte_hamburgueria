@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useState, useRef, useCallback } from "react"
+import { useRouter } from "next/navigation"
+
 
 type OrderStatus =
   | "paid"
@@ -29,20 +31,28 @@ export default function AdminPedidosPage() {
     ticket: 0,
     lastDate: "",
   })
-  const [password, setPassword] = useState("")
-  const [authenticated, setAuthenticated] = useState(false)
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [, setTick] = useState(0)
   const [cancelModal, setCancelModal] = useState<{
     show: boolean
     paymentId: string | null
   }>({ show: false, paymentId: null })
+  const [deliveryModal, setDeliveryModal] = useState<{
+    show: boolean
+    paymentId: string | null
+  }>({ show: false, paymentId: null })
+  const [deliveryMode, setDeliveryMode] = useState<"own" | "lalamove">("own")
+  const [driverName, setDriverName] = useState("")
+  const [driverPhone, setDriverPhone] = useState("")
+  const [driverPlate, setDriverPlate] = useState("")
   const [logoutModal, setLogoutModal] = useState(false)
   const [showRefreshFeedback, setShowRefreshFeedback] = useState(false)
 
+  const router = useRouter()
   const audioContextRef = useRef<AudioContext | null>(null)
   const audioPlayedRef = useRef<Set<string>>(new Set())
   const isFetchingRef = useRef(false)
+  const isMountedRef = useRef(true)
 
   // Atualiza os tempos a cada 30s
   useEffect(() => {
@@ -117,116 +127,133 @@ export default function AdminPedidosPage() {
     }
   }, [soundEnabled])
 
-  const fetchOrders = useCallback(
-    async (showFeedback = false) => {
-      // Evitar múltiplas requisições simultâneas
-      if (isFetchingRef.current) return
+  const fetchOrders = useCallback(async (showFeedback = false) => {
+    // Evitar múltiplas requisições simultâneas
+    if (isFetchingRef.current) return
 
-      try {
-        isFetchingRef.current = true
+    try {
+      isFetchingRef.current = true
 
-        const res = await fetch("/api/admin/orders-memory")
-        const data = await res.json()
+      const res = await fetch("/api/admin/orders-memory")
 
-        if (data.orders) {
-          const paidIds = (data.orders as Order[])
-            .filter((o) => o.order_status === "paid")
-            .map((o) => o.payment_id)
+      // Se não autorizado, redirecionar para login
+      if (res.status === 401) {
+        router.push("/admin/login")
+        return
+      }
 
-          for (const id of paidIds) {
-            if (!audioPlayedRef.current.has(id)) {
-              audioPlayedRef.current.add(id)
-              console.log("🆕 Novo pedido detectado:", id)
-              playNotificationSound()
-            }
-          }
+      const data = await res.json()
 
-          setOrders(data.orders)
+      if (data.orders && isMountedRef.current) {
+        const paidIds = (data.orders as Order[])
+          .filter((o) => o.order_status === "paid")
+          .map((o) => o.payment_id)
 
-          const today = new Date().toDateString()
-          const todayOrders = (data.orders as Order[]).filter(
-            (o) =>
-              new Date(o.created_at).toDateString() === today &&
-              o.order_status !== "cancelled"
-          )
-          const total = todayOrders.length
-          const revenue = todayOrders.reduce((sum, o) => sum + o.total, 0)
-          const ticket = total > 0 ? revenue / total : 0
-
-          setStats((prev) => {
-            if (prev.lastDate && prev.lastDate !== today) {
-              audioPlayedRef.current.clear()
-              return { total: 0, revenue: 0, ticket: 0, lastDate: today }
-            }
-            return { total, revenue, ticket, lastDate: today }
-          })
-
-          // Mostrar feedback de atualização apenas se foi clique manual
-          if (showFeedback) {
-            setShowRefreshFeedback(true)
-            setTimeout(() => setShowRefreshFeedback(false), 2000)
+        for (const id of paidIds) {
+          if (!audioPlayedRef.current.has(id)) {
+            audioPlayedRef.current.add(id)
+            console.log("🆕 Novo pedido detectado:", id)
+            playNotificationSound()
           }
         }
-      } catch (err) {
-        console.error("Erro:", err)
-      } finally {
-        setLoading(false)
-        isFetchingRef.current = false
+
+        setOrders(data.orders)
+
+        const today = new Date().toDateString()
+        const todayOrders = (data.orders as Order[]).filter(
+          (o) =>
+            new Date(o.created_at).toDateString() === today &&
+            o.order_status !== "cancelled"
+        )
+        const total = todayOrders.length
+        const revenue = todayOrders.reduce((sum, o) => sum + o.total, 0)
+        const ticket = total > 0 ? revenue / total : 0
+
+        setStats((prev) => {
+          if (prev.lastDate && prev.lastDate !== today) {
+            audioPlayedRef.current.clear()
+            return { total: 0, revenue: 0, ticket: 0, lastDate: today }
+          }
+          return { total, revenue, ticket, lastDate: today }
+        })
+
+        // Mostrar feedback de atualização apenas se foi clique manual
+        if (showFeedback) {
+          setShowRefreshFeedback(true)
+          setTimeout(() => setShowRefreshFeedback(false), 2000)
+        }
       }
-    },
-    [playNotificationSound]
-  )
+    } catch (err) {
+      console.error("Erro:", err)
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false)
+      }
+      isFetchingRef.current = false
+    }
+  }, [playNotificationSound, router])
 
   // Carregamento inicial
   useEffect(() => {
-    const isAuth = localStorage.getItem("@SaborEArte:adminAuth")
-    if (isAuth === "true") {
-      setAuthenticated(true)
-      fetchOrders(false)
-      createAndActivateAudio()
+    isMountedRef.current = true
+    fetchOrders(false)
+    createAndActivateAudio()
+
+    return () => {
+      isMountedRef.current = false
     }
-  }, [createAndActivateAudio, fetchOrders])
+  }, [fetchOrders, createAndActivateAudio])
 
-  // Intervalo automático - SEM dependências problemáticas
+  // Intervalo automático
   useEffect(() => {
-    if (!authenticated) return
-
     const interval = setInterval(() => {
       fetchOrders(false)
     }, 5000)
 
     return () => clearInterval(interval)
-  }, [authenticated, fetchOrders])
+  }, [fetchOrders])
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (password === "saborearte123") {
-      createAndActivateAudio()
-      localStorage.setItem("@SaborEArte:adminAuth", "true")
-      setAuthenticated(true)
-      fetchOrders(false)
-    } else {
-      alert("Senha incorreta")
-    }
-  }
+  const handleLogout = async () => {
+    // Limpar cookie fazendo logout no servidor
+    await fetch("/api/admin/logout", { method: "POST" })
+    router.push("/admin/login")
+    setLogoutModal(false)
 
-  const handleLogout = () => {
-    localStorage.removeItem("@SaborEArte:adminAuth")
-    setAuthenticated(false)
     if (audioContextRef.current) {
       audioContextRef.current.close()
       audioContextRef.current = null
     }
-    setLogoutModal(false)
   }
 
-  const updateStatus = async (paymentId: string, newStatus: OrderStatus) => {
+  const updateStatus = async (
+    paymentId: string,
+    newStatus: OrderStatus,
+    options?: {
+      deliveryMode?: "own" | "lalamove"
+      driverName?: string
+      driverPhone?: string
+      driverPlate?: string
+    }
+  ) => {
     try {
       const res = await fetch("/api/admin/update-status-memory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentId, status: newStatus }),
+        body: JSON.stringify({
+          paymentId,
+          status: newStatus,
+          deliveryMode: options?.deliveryMode || "own",
+          driverName: options?.driverName || "",
+          driverPhone: options?.driverPhone || "",
+          driverPlate: options?.driverPlate || "",
+        }),
       })
+
+      if (res.status === 401) {
+        router.push("/admin/login")
+        return
+      }
+
       if (res.ok) fetchOrders(false)
     } catch (err) {
       console.error("Erro ao atualizar:", err)
@@ -275,33 +302,6 @@ export default function AdminPedidosPage() {
     })
   }
 
-  if (!authenticated) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
-        <form
-          onSubmit={handleLogin}
-          className="w-full max-w-sm rounded-lg bg-white p-6 shadow-md"
-        >
-          <h1 className="mb-4 text-xl font-bold">Acesso Restrito</h1>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Digite a senha"
-            className="mb-4 w-full rounded-lg border px-3 py-2"
-            autoFocus
-          />
-          <button
-            type="submit"
-            className="bg-primary hover:bg-primary/90 w-full cursor-pointer rounded-lg py-2 font-bold text-white transition"
-          >
-            Entrar
-          </button>
-        </form>
-      </div>
-    )
-  }
-
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -334,7 +334,7 @@ export default function AdminPedidosPage() {
       <div className="mx-auto max-w-7xl">
         {/* Toast de feedback de atualização */}
         {showRefreshFeedback && (
-          <div className="animate-in slide-in-from-top-2 fade-in fixed top-24 right-4 z-50 duration-300">
+          <div className="fixed top-24 right-4 z-50 animate-in slide-in-from-top-2 fade-in duration-300">
             <div className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white shadow-lg">
               <svg
                 className="h-5 w-5"
@@ -377,6 +377,102 @@ export default function AdminPedidosPage() {
                   className="flex-1 cursor-pointer rounded-lg bg-gray-300 py-2 font-bold text-gray-800 transition hover:bg-gray-400"
                 >
                   Não, Voltar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de seleção de formato de entrega */}
+        {deliveryModal.show && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="mx-4 w-full max-w-md rounded-lg bg-white p-6">
+              <h2 className="mb-4 text-xl font-bold">
+                Definir canal de entrega
+              </h2>
+              <p className="mb-4 text-sm text-gray-600">
+                Escolha como a entrega será conduzida quando o pedido sair para
+                a rota.
+              </p>
+
+              <div className="mb-4 flex flex-col gap-3">
+                <label className="flex items-center gap-2 rounded-lg border p-3">
+                  <input
+                    type="radio"
+                    name="deliveryMode"
+                    checked={deliveryMode === "lalamove"}
+                    onChange={() => setDeliveryMode("lalamove")}
+                  />
+                  <span className="font-semibold text-blue-700">
+                    Lalamove
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 rounded-lg border p-3">
+                  <input
+                    type="radio"
+                    name="deliveryMode"
+                    checked={deliveryMode === "own"}
+                    onChange={() => setDeliveryMode("own")}
+                  />
+                  <span className="font-semibold text-green-700">
+                    Motoboy próprio
+                  </span>
+                </label>
+              </div>
+
+              {deliveryMode === "own" && (
+                <div className="mb-4 grid grid-cols-1 gap-3">
+                  <input
+                    className="rounded-lg border px-3 py-2"
+                    placeholder="Nome do motoboy"
+                    value={driverName}
+                    onChange={(e) => setDriverName(e.target.value)}
+                  />
+                  <input
+                    className="rounded-lg border px-3 py-2"
+                    placeholder="Telefone do motoboy"
+                    value={driverPhone}
+                    onChange={(e) => setDriverPhone(e.target.value)}
+                  />
+                  <input
+                    className="rounded-lg border px-3 py-2"
+                    placeholder="Placa/veículo (opcional)"
+                    value={driverPlate}
+                    onChange={(e) => setDriverPlate(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    if (deliveryModal.paymentId) {
+                      updateStatus(deliveryModal.paymentId, "delivering", {
+                        deliveryMode,
+                        driverName,
+                        driverPhone,
+                        driverPlate,
+                      })
+                    }
+                    setDeliveryModal({ show: false, paymentId: null })
+                    setDriverName("")
+                    setDriverPhone("")
+                    setDriverPlate("")
+                  }}
+                  className="flex-1 cursor-pointer rounded-lg bg-purple-600 px-4 py-2 font-bold text-white transition hover:bg-purple-700"
+                >
+                  Confirmar
+                </button>
+                <button
+                  onClick={() => {
+                    setDeliveryModal({ show: false, paymentId: null })
+                    setDriverName("")
+                    setDriverPhone("")
+                    setDriverPlate("")
+                  }}
+                  className="flex-1 cursor-pointer rounded-lg bg-gray-300 px-4 py-2 font-bold text-gray-800 transition hover:bg-gray-400"
+                >
+                  Cancelar
                 </button>
               </div>
             </div>
@@ -461,14 +557,14 @@ export default function AdminPedidosPage() {
           </div>
 
           <div className="rounded-lg bg-white p-4 text-center shadow-sm">
-            <div className="text-2xl font-bold wrap-break-word text-green-600">
+            <div className="wrap-break-word text-2xl font-bold text-green-600">
               R$ {stats.revenue.toFixed(2).replace(".", ",")}
             </div>
             <div className="text-xs text-gray-500">faturamento</div>
           </div>
 
           <div className="rounded-lg bg-white p-4 text-center shadow-sm">
-            <div className="text-2xl font-bold wrap-break-word text-blue-600">
+            <div className="wrap-break-word text-2xl font-bold text-blue-600">
               R$ {stats.ticket.toFixed(2).replace(".", ",")}
             </div>
             <div className="text-xs text-gray-500">ticket médio</div>
@@ -626,12 +722,19 @@ export default function AdminPedidosPage() {
                     </div>
                     <div className="mt-4 flex flex-col gap-2 border-t border-gray-200 pt-3 sm:flex-row">
                       <button
-                        onClick={() =>
-                          updateStatus(order.payment_id, "delivering")
-                        }
+                        onClick={() => {
+                          setDeliveryMode("own")
+                          setDriverName("")
+                          setDriverPhone("")
+                          setDriverPlate("")
+                          setDeliveryModal({
+                            show: true,
+                            paymentId: order.payment_id,
+                          })
+                        }}
                         className="flex-1 cursor-pointer rounded-lg bg-purple-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-purple-700 sm:text-sm"
                       >
-                        A CAMINHO
+                        PRONTO
                       </button>
                       <button
                         onClick={() => handleCancelClick(order.payment_id)}
